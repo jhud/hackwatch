@@ -1,6 +1,8 @@
 // Smartwatch based on the ESP32 + SSD1306 OLED
 // (c)2017 James Hudson, released under the MIT license
 
+// NTP based on https://www.arduino.cc/en/Tutorial/UdpNTPClient
+
 // 55mA draw just showing time, changing every second
 // Needs a small off switch just to save power
 // It should sit flat, even if it means moving the battery to the side in a separate pouch.
