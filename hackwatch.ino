@@ -9,6 +9,8 @@
  
 #include <TimeLib.h> 
 #include <WiFi.h>
+#include <WiFiMulti.h>
+
 #include <WiFiUdp.h>
 #include "SSD1306.h" 
 
@@ -51,6 +53,9 @@ CalendarEvent calendarEvents[] = {
     {"Train OK", 6, 10*60, 60},
 };
 
+
+WiFiMulti wifiMulti;
+
 void setup() 
 {
   pinMode(16,OUTPUT);
@@ -69,20 +74,32 @@ void setup()
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
 
-  /*Serial.begin(9600);
-  delay(250);
-  Serial.println(ssid);*/
-  WiFi.begin(ssid, pass);
+  WiFi.mode(WIFI_STA);
 
+  for (int i=0; i<1; i++) {
+      wifiMulti.addAP(ssid[i], pass[i]);
+  }
+
+  int status = WL_IDLE_STATUS; 
   int i=0;
-  while (WiFi.status() != WL_CONNECTED) {
+  while (status != WL_CONNECTED) {
     display.clear();
         display.drawString(0, 0, "Connecting...");
-    display.drawString(0, 10, i&1 ? "." : " ");
+    display.drawString(0, 12, String(i));
        display.drawString(0, 30, String(WiFi.status()));
       display.display();
-          delay(500);
-          i++;
+     status = wifiMulti.run();
+
+                    i++;
+
+      if (i==5) {
+          display.clear();
+         display.drawString(0, 0, "Timed out. Sleeping.");  
+         display.display(); 
+         delay(500000);
+         i=0;  
+      }
+          delay(1000);
   }
 
   
