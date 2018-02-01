@@ -14,8 +14,15 @@
 #include <WiFiUdp.h>
 #include "SSD1306.h" 
 
+#define NUM_OF(x) (sizeof(x)/sizeof(x[0])) // Define because it's useful
+
 // Anything we don't want to commit publicly to git (passwords, keys, etc.)
+// You ned to create this file yourself, like:
+// const char* ssid[3] = {"yourwifi", "secondwifi", "3rd..."};  //  your network SSID (name)
+// const char* pass[3] = {"yourpwd", "secondpwd", "3rdpwd..."};       // your network password
 #include "secrets.h"
+
+#include "fonts.h"
 
 //#ifdef LEFT_HAND // if the watch will be worn on the left hand
 
@@ -38,7 +45,7 @@ time_t lastTime = 0; // Last time time was displayed
 int lastDay = -1;
 
 typedef struct CalendarEvent {
-  char name[9];
+  char name[11];
   char day;
   short int minute;
   short int countdownMinutes;
@@ -49,7 +56,7 @@ CalendarEvent calendarEvents[] = {
     {"Train OK", 3, 10*60, 60},
       {"Train OK", 4, 10*60, 60},
         {"Train OK", 5, 10*60, 60},
-  {"Bus M46", 5, 20*60 + 11, 45},
+  {"U1 Schlesi", 5, 20*60 + 02, 45},
     {"Train OK", 6, 10*60, 60},
 };
 
@@ -76,7 +83,7 @@ void setup()
 
   WiFi.mode(WIFI_STA);
 
-  for (int i=0; i<1; i++) {
+  for (int i=0; i<NUM_OF(ssid); i++) {
       wifiMulti.addAP(ssid[i], pass[i]);
   }
 
@@ -85,8 +92,8 @@ void setup()
   while (status != WL_CONNECTED) {
     display.clear();
         display.drawString(0, 0, "Connecting...");
-    display.drawString(0, 12, String(i));
-       display.drawString(0, 30, String(WiFi.status()));
+    display.drawString(0, 14, String(i));
+       display.drawString(0, 32, String(WiFi.status()));
       display.display();
      status = wifiMulti.run();
 
@@ -96,15 +103,16 @@ void setup()
           display.clear();
          display.drawString(0, 0, "Timed out. Sleeping.");  
          display.display(); 
+         WiFi.disconnect();
+         WiFi.mode(WIFI_OFF);
          delay(500000);
+           WiFi.mode(WIFI_STA);
          i=0;  
       }
-          delay(1000);
+          delay(10000);
   }
 
   
-  Serial.print("IP number assigned by DHCP is ");
-  Serial.println(WiFi.localIP());
 
   Udp.begin(8888);
 
@@ -119,11 +127,14 @@ void setup()
 
 void loop()
 {  
+
+  int hours = hour();
+  const bool nighttime = (hours > 21) || (hours < 7);
   
   if (timeStatus() != timeNotSet) {
     if (now() != lastTime) { 
       lastTime = now();
-      showTime();  
+      showTime(nighttime);  
     }
   }
 
@@ -134,43 +145,58 @@ void loop()
             char buffer[32];
         time_t secElapsed = now() - startTime;
         display.drawString(0, 0, "DEBUG INFO");
-         sprintf(buffer,"Wifi SSID: %s", ssid);
+         sprintf(buffer,"Wifi SSID: %s", WiFi.localIP());
          display.drawString(0, 20, buffer);
     sprintf(buffer,"Uptime: %d:%02d:%02d", secElapsed/3600, (secElapsed/60)%60, secElapsed%60);
         display.drawString(0, 39, buffer);
         display.display();
   }
-  
-  delay(1000);
+
+  if (nighttime && second() == 0) {
+    delay(60000);
+  }
+  else {
+    delay(1000);
+  }
 }
 
 
-void showDate() {
+void showDate(int x, int y) {
      char buffer[32];
-    display.setFont(ArialMT_Plain_16);
+    display.setFont(Lato_Hairline_10);
 
-    display.drawString(00, 28, dayStr(weekday()));
+    display.drawString(x, y, dayStr(weekday()));
 
+   display.setFont(ArialMT_Plain_16);
     sprintf(buffer,"%02d/%02d/%04d", day(), month(), year());
-    display.drawString(2, 49, buffer);
+    display.drawString(x, y+13, buffer);
   }
 
-void showTime(){
+void showTime(bool nighttime){
     char buffer[32];
   
     if (day() != lastDay) {
         display.clear();
-      showDate();
+      showDate(2, 29);
     lastDay = day(); 
     }
 
 
+  const char *timeFont = nighttime ? Lato_Hairline_24 : Lato_Semibold_26;
+
 display.setColor(BLACK);
-display.fillRect(0, 0, DISPLAY_WIDTH-10, 24);
+display.fillRect(0, 0, DISPLAY_WIDTH-10, 26);
 display.setColor(WHITE);
 
-    sprintf(buffer,"%02d:%02d:%02d", hour(), minute(), second());
-    display.setFont(ArialMT_Plain_24);
+int hours = hour();
+if (!nighttime) {
+    sprintf(buffer,"%02d:%02d:%02d", hours, minute(), second());
+}
+else {
+    sprintf(buffer,"%02d:%02d", hours, minute());  
+}
+
+    display.setFont(timeFont);
     display.drawString(0, 0, buffer);
 
 for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
@@ -185,7 +211,7 @@ display.setColor(BLACK);
 display.fillRect(0, 28, DISPLAY_WIDTH-10, DISPLAY_HEIGHT-28);
 display.setColor(WHITE);
     
-    display.setFont(ArialMT_Plain_24);
+    display.setFont(timeFont);
 
     display.drawString(0, 28, buffer);
     
@@ -196,18 +222,31 @@ display.setColor(WHITE);
         const int top = 32;
         const int bot = 59;
         const int mid = (top+bot)/2;
-    display.drawLine(62, top, 72, mid);
-    display.drawLine(62, bot, 72, mid);
+    display.drawLine(66, top, 72, mid);
+    display.drawLine(66, bot, 72, mid);
     display.drawVerticalLine(62, top, bot-top);
     }
     else if (secondsRemaining == -1) {
              display.clear();
-      showDate(); 
+      showDate(2, 29); 
     }
 
   }
 }
 
+
+
+if (!nighttime) {
+  time_t secElapsed = now();
+  for (int i=0; i<32; i++) {
+    display.setColor((secElapsed&1) == 0 ? BLACK : WHITE);
+
+      display.fillRect(124-i*4, DISPLAY_HEIGHT-4, 4, 4);
+  secElapsed >>= 1;
+   
+  }
+}
+ 
   display.display();
 }
 
