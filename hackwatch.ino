@@ -6,6 +6,10 @@
 // 55mA draw just showing time, changing every second
 // Needs a small off switch just to save power
 // It should sit flat, even if it means moving the battery to the side in a separate pouch.
+
+// Note on ESP32 sleep modes: the deep and light sleeps both work fine with the RTC,
+// but on the WEMO board, the OLED screen blanks itself on sleep. This makes it not so useful
+// for a watch :(. Maybe GPIO0 to toggle sleep mode on and off would be useful?
  
 #include <TimeLib.h> 
 #include <WiFi.h>
@@ -26,6 +30,8 @@
 
 //#ifdef LEFT_HAND // if the watch will be worn on the left hand
 
+#define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
+
 //OLED pins to ESP32 GPIOs via this connecthin:
 //OLED_SDA -- GPIO4
 //OLED_SCL -- GPIO15
@@ -41,7 +47,7 @@ const int timeZone = 1; // Berlin
 WiFiUDP Udp;
 
 time_t startTime = 0; 
-time_t lastTime = 0; // Last time time was displayed
+time_t pressTime = 0; // Last time time was displayed
 int lastDay = -1;
 
 typedef struct CalendarEvent {
@@ -62,9 +68,39 @@ CalendarEvent calendarEvents[] = {
 
 
 WiFiMulti wifiMulti;
+#define INTERUPT_PIN 0
+void onboardButtonPressed() {
+
+        detachInterrupt(INTERUPT_PIN);
+        pinMode(INTERUPT_PIN, INPUT);
+        display.displayOff();
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0,0);
+    esp_deep_sleep_start();
+}
+
+/*void onboardButtonReleased() {
+  if (now() - pressTime < 2) {
+  
+  }
+  else {
+       display.setContrast(255);
+       display.setColor(WHITE);
+        display.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+display.setColor(BLACK);
+                display.drawString(0, 0, String(now() - pressTime));
+                display.display();
+  }
+}*/
+
+bool isTimeSet() {
+    time_t now = time(nullptr);
+ return (now > 1000);
+}
 
 void setup() 
 {
+
+  
   pinMode(16,OUTPUT);
   digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
   delay(50); 
@@ -74,9 +110,30 @@ void setup()
 
   display.init();
 
+
 #ifdef LEFT_HAND
   display.flipScreenVertically();
 #endif
+
+  Serial.begin(115200);
+  delay(100);
+  if (isTimeSet()) {
+    Serial.println("Woo! we woke up");
+
+
+timeval time_now; 
+
+  
+
+
+    gettimeofday(&time_now, NULL); 
+    
+        setTime(time_now.tv_sec); // @todo use a single system
+
+  }
+  else {
+  
+ 
 
     display.setTextAlignment(TEXT_ALIGN_LEFT);
     display.setFont(ArialMT_Plain_16);
@@ -120,44 +177,38 @@ void setup()
     display.drawString(0, 0, "Getting time...");
     display.display();
 
-  setSyncProvider(getNtpTime);
+auto ntpTime = getNtpTime();
+timeval time_now; 
+time_now.tv_sec = ntpTime;
+time_now.tv_usec = 0;
+  
+
+
+    settimeofday(&time_now, NULL); // as used by the onboard RTC which can survive deep sleeps
+    setTime(ntpTime); // @todo use a single system
+  }
 
   startTime = now();
+
+//pinMode(INTERUPT_PIN, INPUT_PULLUP);
+ attachInterrupt(digitalPinToInterrupt(INTERUPT_PIN), onboardButtonPressed, RISING);
+//attachInterrupt(digitalPinToInterrupt(INTERUPT_PIN), onboardButtonReleased, RISING);
 }
 
 void loop()
 {  
-
+  //Serial.println("Looping");
   int hours = hour();
   const bool nighttime = (hours > 21) || (hours < 7);
-  
-  if (timeStatus() != timeNotSet) {
-    if (now() != lastTime) { 
-      lastTime = now();
-      showTime(nighttime);  
-    }
-  }
-
-
-  if (digitalRead(0) != 1) {
-        display.setFont(ArialMT_Plain_10);
-        display.clear();
-            char buffer[32];
-        time_t secElapsed = now() - startTime;
-        display.drawString(0, 0, "DEBUG INFO");
-         sprintf(buffer,"Wifi SSID: %s", WiFi.localIP());
-         display.drawString(0, 20, buffer);
-    sprintf(buffer,"Uptime: %d:%02d:%02d", secElapsed/3600, (secElapsed/60)%60, secElapsed%60);
-        display.drawString(0, 39, buffer);
-        display.display();
-  }
+  showTime(nighttime);  
 
   if (nighttime && second() == 0) {
-    delay(60000);
+delay(60000);
   }
   else {
-    delay(1000);
+delay(1000);
   }
+
 }
 
 
@@ -190,9 +241,13 @@ display.setColor(WHITE);
 
 int hours = hour();
 if (!nighttime) {
+   display.setContrast(127);
+
     sprintf(buffer,"%02d:%02d:%02d", hours, minute(), second());
 }
 else {
+    display.setContrast(0);
+
     sprintf(buffer,"%02d:%02d", hours, minute());  
 }
 
@@ -213,18 +268,18 @@ display.setColor(WHITE);
     
     display.setFont(timeFont);
 
-    display.drawString(0, 28, buffer);
+    display.drawString(0, 25, buffer);
     
     display.setFont(ArialMT_Plain_10);
         display.setTextAlignment(TEXT_ALIGN_RIGHT);
-    display.drawString(59, 50, event.name);
+    display.drawString(66, 49, event.name);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
-        const int top = 32;
-        const int bot = 59;
+        const int top = 34;
+        const int bot = 53;
         const int mid = (top+bot)/2;
-    display.drawLine(66, top, 72, mid);
-    display.drawLine(66, bot, 72, mid);
-    display.drawVerticalLine(62, top, bot-top);
+    display.drawLine(72, top, 78, mid);
+    display.drawLine(72, bot, 78, mid);
+    display.drawVerticalLine(72, top, bot-top);
     }
     else if (secondsRemaining == -1) {
              display.clear();
@@ -240,7 +295,7 @@ if (!nighttime) {
   time_t secElapsed = now();
   for (int i=0; i<32; i++) {
     display.setColor((secElapsed&1) == 0 ? BLACK : WHITE);
-
+   
       display.fillRect(124-i*4, DISPLAY_HEIGHT-4, 4, 4);
   secElapsed >>= 1;
    
