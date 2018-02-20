@@ -5,8 +5,10 @@
 
 enum State {
 	StateTime,
+  StateMenu,
   StateStopwatch,
-	StateFlashlight,
+  StateTimer,
+	StateFlashlight
 };
 
 #endif

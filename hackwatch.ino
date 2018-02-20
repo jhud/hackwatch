@@ -212,12 +212,30 @@ void transitionState(State st) {
     case StateTime:
            display.setContrast(127);
       display.clear();
+            showDate(2, 29);
+      break;
+
+    case StateMenu:
+      display.setContrast(127);
+      display.clear();
+      display.setColor(WHITE);
+      display.setFont(ArialMT_Plain_10);
+      display.drawString(0, 0, "TIME");
+      display.drawString(64, 0, "NEXT");
+      display.drawString(110, 0, "OK");
+      
+      display.setFont( Lato_Semibold_26);
       break;
 
     case StateStopwatch:
       startTime = millis();
            display.setContrast(127);
          display.setFont( Lato_Semibold_26);
+      display.clear();
+      break;
+
+    case StateTimer:
+           display.setContrast(127);
       display.clear();
       break;
 
@@ -238,13 +256,9 @@ if (inputMap&1 && (state != StateTime)) {
     transitionState(StateTime);
     inputMap &= ~1;
 }
-if (inputMap&2 && (state != StateStopwatch)) {
-    transitionState(StateStopwatch);
+if (inputMap&2 && (state != StateMenu)) {
+    transitionState(StateMenu);
     inputMap &= ~2;
-}
-if (inputMap&8 && (state != StateFlashlight)) {
-    transitionState(StateFlashlight);
-    inputMap &= ~8;
 }
 }
 
@@ -274,14 +288,91 @@ display.setColor(WHITE);
       display.drawString(0, 0, buffer);
         display.display();
       delay(100);
+
+      if (inputMap&4) {
+        startTime = millis();
+            inputMap &= ~4;
+      }
+      if (inputMap&8) {
+              display.setColor(BLACK);
+display.fillRect(0, 28, DISPLAY_WIDTH-10, 28);
+display.setColor(WHITE);
+      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
+      display.drawString(0, 28, buffer);
+            inputMap &= ~8;
+      }
       break;
     }
+
+    case StateMenu:
+      updateMenu();
+      delay(500);
+      break;
+
+    case StateTimer:
+      updateTimer();
+      delay(1000);
+      break;
 
     case StateFlashlight:
       delay(1000);
       break;
   }
 
+}
+
+struct MenuItem {
+  char * name;
+  State state;
+};
+
+MenuItem menuItems[] = {
+  {"Stopwatch", StateStopwatch},
+  {"Flashlight", StateFlashlight},
+  {"Timer", StateTimer},
+};
+
+void updateMenu() {
+  static int menuSelected = 0;
+  if (inputMap&4) {  
+      menuSelected++;
+      menuSelected %= NUM_OF(menuItems);
+
+      display.setColor(BLACK);
+      display.fillRect(0, 24, DISPLAY_WIDTH, 36);
+      
+      inputMap &= ~4;
+  }
+
+  if (inputMap&8) {  
+      transitionState(menuItems[menuSelected].state);
+      inputMap &= ~8;
+      return;
+  }
+
+      display.setColor(WHITE);
+  display.drawString(0,24, menuItems[menuSelected].name);
+  display.display();
+}
+
+void updateTimer() {
+       char buffer[32];
+      int currentSeconds = hour() * 3600 + minute()*60 + second();  
+    int secondsRemaining = hour()*60 + 300 - currentSeconds;
+    if (secondsRemaining >= 0) {
+    sprintf(buffer,"%02d:%02d",secondsRemaining/60, secondsRemaining%60);
+
+display.setColor(BLACK);
+display.fillRect(0, 28, DISPLAY_WIDTH-10, DISPLAY_HEIGHT-28);
+display.setColor(WHITE);
+    
+    display.setFont(Lato_Semibold_26);
+
+    display.drawString(0, 25, buffer);
+    }
+    else {
+      transitionState(StateTime);
+    }
 }
 
 
@@ -365,11 +456,6 @@ display.setColor(WHITE);
 }
 
 static bool showBinary = true;
-
-if (inputMap&2) {
-    display.drawString(0, 0, "BUTTON 2");
-      inputMap &= ~2;
-}
 
 if (showBinary) {
   time_t secElapsed = now();
