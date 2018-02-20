@@ -8,8 +8,13 @@
 // It should sit flat, even if it means moving the battery to the side in a separate pouch.
 
 // Note on ESP32 sleep modes: the deep and light sleeps both work fine with the RTC,
-// but on the WEMO board, the OLED screen blanks itself on sleep. This makes it not so useful
-// for a watch :(. Maybe GPIO0 to toggle sleep mode on and off would be useful?
+// but on the "TTGO ESP32 OLED" board, the OLED screen blanks itself on sleep because of the reset pin
+// configuration. This makes it not so useful for a watch, discounting any hardware mods to
+// the board. So GPIO0 is used as an on/off switch.
+
+// Note on Apple ANCS - I think this needs to have a secure pairing, otherwise the service
+// is not advertised over BLE. This is currently under development for the ESP32 Arduino libs
+// but is not yet released.
  
 #include <TimeLib.h> 
 #include <WiFi.h>
@@ -17,6 +22,8 @@
 
 #include <WiFiUdp.h>
 #include "SSD1306.h" 
+
+#include "states.h"
 
 #define NUM_OF(x) (sizeof(x)/sizeof(x[0])) // Define because it's useful
 
@@ -46,26 +53,35 @@ const int timeZone = 1; // Berlin
 
 WiFiUDP Udp;
 
-time_t startTime = 0; 
+unsigned long startTime = 0; 
 time_t pressTime = 0; // Last time time was displayed
 int lastDay = -1;
 
 typedef struct CalendarEvent {
-  char name[11];
+  char name[13];
   char day;
   short int minute;
   short int countdownMinutes;
 };
 
+// Sunday = 1
+// Saturday = 7
 CalendarEvent calendarEvents[] = {
   {"Train OK", 2, 10*60, 60},
-    {"Train OK", 3, 10*60, 60},
-      {"Train OK", 4, 10*60, 60},
-        {"Train OK", 5, 10*60, 60},
+  {"Train OK", 3, 10*60, 60},
+  {"Train OK", 4, 10*60, 60},
+  {"Train OK", 5, 10*60, 60},
   {"U1 Schlesi", 5, 20*60 + 02, 45},
-    {"Train OK", 6, 10*60, 60},
+  {"U6 H'ches Tr", 5, 20*60 + 17, 14},
+  {"Train OK", 6, 10*60, 60},
+  {"FL aerial", 7, 13*60, 60}, 
+  {"FL stretch", 1, 12*60, 60}
 };
 
+int buttonPins[] = {25, 32, 26, 27};
+uint32_t inputMap;
+
+State state = StateTime;
 
 WiFiMulti wifiMulti;
 #define INTERUPT_PIN 0
@@ -78,19 +94,14 @@ void onboardButtonPressed() {
     esp_deep_sleep_start();
 }
 
-/*void onboardButtonReleased() {
-  if (now() - pressTime < 2) {
-  
-  }
-  else {
-       display.setContrast(255);
-       display.setColor(WHITE);
-        display.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-display.setColor(BLACK);
-                display.drawString(0, 0, String(now() - pressTime));
-                display.display();
-  }
-}*/
+void inputPressed0() { inputMap |=  1; }
+
+void inputPressed1() { inputMap |=  2; }
+
+void inputPressed2() { inputMap |=  4; }
+
+void inputPressed3() { inputMap |=  8; }
+
 
 bool isTimeSet() {
     time_t now = time(nullptr);
@@ -100,13 +111,17 @@ bool isTimeSet() {
 void setup() 
 {
 
-  
   pinMode(16,OUTPUT);
   digitalWrite(16, LOW);    // set GPIO16 low to reset OLED
   delay(50); 
   digitalWrite(16, HIGH); // while OLED is running, must set GPIO16 in high
 
   pinMode(0, INPUT); // Let us use flash button on dev board as a function button
+
+for (int i=0; i<NUM_OF(buttonPins); i++) {
+pinMode(buttonPins[i], INPUT_PULLUP);  
+}
+
 
   display.init();
 
@@ -119,17 +134,9 @@ void setup()
   delay(100);
   if (isTimeSet()) {
     Serial.println("Woo! we woke up");
-
-
-timeval time_now; 
-
-  
-
-
+    timeval time_now; 
     gettimeofday(&time_now, NULL); 
-    
-        setTime(time_now.tv_sec); // @todo use a single system
-
+    setTime(time_now.tv_sec); // @todo use a single system
   }
   else {
   
@@ -188,25 +195,91 @@ time_now.tv_usec = 0;
     setTime(ntpTime); // @todo use a single system
   }
 
-  startTime = now();
 
-//pinMode(INTERUPT_PIN, INPUT_PULLUP);
  attachInterrupt(digitalPinToInterrupt(INTERUPT_PIN), onboardButtonPressed, RISING);
-//attachInterrupt(digitalPinToInterrupt(INTERUPT_PIN), onboardButtonReleased, RISING);
+
+
+  attachInterrupt(digitalPinToInterrupt(buttonPins[0]), inputPressed0, FALLING);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[1]), inputPressed1, FALLING);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[2]), inputPressed2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[3]), inputPressed3, FALLING);
+
+
 }
+
+void transitionState(State st) {
+  switch(st) {
+    case StateTime:
+           display.setContrast(127);
+      display.clear();
+      break;
+
+    case StateStopwatch:
+      startTime = millis();
+           display.setContrast(127);
+         display.setFont( Lato_Semibold_26);
+      display.clear();
+      break;
+
+    case StateFlashlight:
+       display.setContrast(255);
+      display.setColor(WHITE);
+      display.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
+        display.display();
+      break;
+  }
+
+  state = st;
+
+}
+ 
+void handleGlobalButtons() {
+if (inputMap&1 && (state != StateTime)) {
+    transitionState(StateTime);
+    inputMap &= ~1;
+}
+if (inputMap&2 && (state != StateStopwatch)) {
+    transitionState(StateStopwatch);
+    inputMap &= ~2;
+}
+if (inputMap&8 && (state != StateFlashlight)) {
+    transitionState(StateFlashlight);
+    inputMap &= ~8;
+}
+}
+
 
 void loop()
 {  
-  //Serial.println("Looping");
   int hours = hour();
   const bool nighttime = (hours > 21) || (hours < 7);
-  showTime(nighttime);  
 
-  if (nighttime && second() == 0) {
-delay(60000);
-  }
-  else {
-delay(1000);
+  handleGlobalButtons();
+
+  switch(state) {
+    case StateTime:
+      showTime(nighttime);  
+      delay(1000);
+      break;
+
+    case StateStopwatch:
+    {
+      display.setColor(BLACK);
+display.fillRect(0, 0, DISPLAY_WIDTH-10, 28);
+display.setColor(WHITE);
+         char buffer[32];
+    auto diff = millis() - startTime;
+    auto sec = diff/1000;
+      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
+      display.drawString(0, 0, buffer);
+        display.display();
+      delay(100);
+      break;
+    }
+
+    case StateFlashlight:
+      delay(1000);
+      break;
   }
 
 }
@@ -238,6 +311,8 @@ void showTime(bool nighttime){
 display.setColor(BLACK);
 display.fillRect(0, 0, DISPLAY_WIDTH-10, 26);
 display.setColor(WHITE);
+
+
 
 int hours = hour();
 if (!nighttime) {
@@ -289,9 +364,14 @@ display.setColor(WHITE);
   }
 }
 
+static bool showBinary = true;
 
+if (inputMap&2) {
+    display.drawString(0, 0, "BUTTON 2");
+      inputMap &= ~2;
+}
 
-if (!nighttime) {
+if (showBinary) {
   time_t secElapsed = now();
   for (int i=0; i<32; i++) {
     display.setColor((secElapsed&1) == 0 ? BLACK : WHITE);
@@ -301,7 +381,7 @@ if (!nighttime) {
    
   }
 }
- 
+
   display.display();
 }
 
