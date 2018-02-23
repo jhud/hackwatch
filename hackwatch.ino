@@ -54,7 +54,7 @@ const int timeZone = 1; // Berlin
 WiFiUDP Udp;
 
 unsigned long startTime = 0; 
-time_t pressTime = 0; // Last time time was displayed
+time_t timer = 0;
 int lastDay = -1;
 
 typedef struct CalendarEvent {
@@ -207,7 +207,34 @@ time_now.tv_usec = 0;
 
 }
 
+void showMenu(const char * item1, const char * item2, const char * item3) {
+        display.setColor(BLACK);
+      display.fillRect(0, 0, DISPLAY_WIDTH, 10);
+        display.setColor(WHITE);
+    display.drawLine(1, 0, 2, 0);
+    display.drawLine(DISPLAY_WIDTH/3, 0, DISPLAY_WIDTH/3+2, 0);
+    display.drawLine(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH*2/3+2, 0);
+    display.drawLine(DISPLAY_WIDTH-2, 0, DISPLAY_WIDTH-1, 0);
+        
+      display.setFont(ArialMT_Plain_10);
+        display.setTextAlignment(TEXT_ALIGN_LEFT);
+      display.drawString(0, 0, "TIME");
+              display.setTextAlignment(TEXT_ALIGN_CENTER);
+      display.drawString(DISPLAY_WIDTH/3, 0, item1);
+      display.drawString(DISPLAY_WIDTH*2/3, 0, item2);
+              display.setTextAlignment(TEXT_ALIGN_RIGHT);
+      display.drawString(DISPLAY_WIDTH-1, 0, item3);
+              display.setTextAlignment(TEXT_ALIGN_LEFT);
+}
+
 void transitionState(State st) {
+  switch (state) {
+    case StateWifiScan:
+      WiFi.disconnect();
+      WiFi.mode(WIFI_OFF);
+      break;
+  }
+  
   switch(st) {
     case StateTime:
            display.setContrast(127);
@@ -218,11 +245,7 @@ void transitionState(State st) {
     case StateMenu:
       display.setContrast(127);
       display.clear();
-      display.setColor(WHITE);
-      display.setFont(ArialMT_Plain_10);
-      display.drawString(0, 0, "TIME");
-      display.drawString(64, 0, "NEXT");
-      display.drawString(110, 0, "OK");
+      showMenu("PREV", "NEXT", "OK");
       
       display.setFont( Lato_Semibold_26);
       break;
@@ -230,13 +253,16 @@ void transitionState(State st) {
     case StateStopwatch:
       startTime = millis();
            display.setContrast(127);
+                 display.clear();
+                 showMenu("", "RESET", "LAP");
          display.setFont( Lato_Semibold_26);
-      display.clear();
       break;
 
     case StateTimer:
            display.setContrast(127);
       display.clear();
+                 showMenu("+10", "+1", "GO");
+                          display.setFont( Lato_Semibold_26);
       break;
 
     case StateFlashlight:
@@ -245,6 +271,10 @@ void transitionState(State st) {
       display.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
         display.display();
       break;
+
+     case StateWifiScan:
+      WiFi.mode(WIFI_STA);
+      WiFi.disconnect();
   }
 
   state = st;
@@ -252,13 +282,14 @@ void transitionState(State st) {
 }
  
 void handleGlobalButtons() {
-if (inputMap&1 && (state != StateTime)) {
-    transitionState(StateTime);
+if (inputMap&1) {
+    if (state == StateTime) {
+      transitionState(StateMenu);
+    }
+    else {
+       transitionState(StateTime);     
+    }
     inputMap &= ~1;
-}
-if (inputMap&2 && (state != StateMenu)) {
-    transitionState(StateMenu);
-    inputMap &= ~2;
 }
 }
 
@@ -276,46 +307,36 @@ void loop()
       delay(1000);
       break;
 
+    case StateBinary:
+    {
+      updateBinary(0);  
+      delay(1000);
+      break;
+    }
+
     case StateStopwatch:
     {
-      display.setColor(BLACK);
-display.fillRect(0, 0, DISPLAY_WIDTH-10, 28);
-display.setColor(WHITE);
-         char buffer[32];
-    auto diff = millis() - startTime;
-    auto sec = diff/1000;
-      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
-      display.drawString(0, 0, buffer);
-        display.display();
-      delay(100);
-
-      if (inputMap&4) {
-        startTime = millis();
-            inputMap &= ~4;
-      }
-      if (inputMap&8) {
-              display.setColor(BLACK);
-display.fillRect(0, 28, DISPLAY_WIDTH-10, 28);
-display.setColor(WHITE);
-      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
-      display.drawString(0, 28, buffer);
-            inputMap &= ~8;
-      }
+      updateStopwatch(11);
       break;
     }
 
     case StateMenu:
       updateMenu();
-      delay(500);
+      delay(250);
       break;
 
     case StateTimer:
       updateTimer();
-      delay(1000);
+      delay(100);
       break;
 
     case StateFlashlight:
       delay(1000);
+      break;
+
+    case StateWifiScan:
+      updateWifiScan(11, DISPLAY_HEIGHT-11);
+      delay(5000);
       break;
   }
 
@@ -330,10 +351,23 @@ MenuItem menuItems[] = {
   {"Stopwatch", StateStopwatch},
   {"Flashlight", StateFlashlight},
   {"Timer", StateTimer},
+  {"Binary", StateBinary},
+  {"WiFi Scan", StateWifiScan}
 };
 
 void updateMenu() {
   static int menuSelected = 0;
+
+  if (inputMap&2) {  
+      menuSelected+=NUM_OF(menuItems)-1;
+      menuSelected %= NUM_OF(menuItems);
+
+      display.setColor(BLACK);
+      display.fillRect(0, 24, DISPLAY_WIDTH, 36);
+      
+      inputMap &= ~2;
+  }
+  
   if (inputMap&4) {  
       menuSelected++;
       menuSelected %= NUM_OF(menuItems);
@@ -357,8 +391,49 @@ void updateMenu() {
 
 void updateTimer() {
        char buffer[32];
-      int currentSeconds = hour() * 3600 + minute()*60 + second();  
-    int secondsRemaining = hour()*60 + 300 - currentSeconds;
+      static int timerSeconds = 0;
+      static bool running = false;
+
+  if (inputMap&2) {  
+      timerSeconds += 600;
+      inputMap &= ~2;
+            if (running == true) {
+        timerSeconds = 0;
+        running = false;
+      }
+       showMenu("+10", "+1", "GO");
+  }
+
+  if (inputMap&4) {  
+      timerSeconds += 60;
+      inputMap &= ~4;
+            if (running == true) {
+        timerSeconds = 0;
+        running = false;
+      }
+      showMenu("+10", "+1", "GO");
+  }
+
+  
+  if (inputMap&8) {  
+          inputMap &= ~8;
+      if (running == true) {
+        timerSeconds = 0;
+        running = false;
+        return;
+      }
+      timer = now() + timerSeconds;
+      running = true;
+      timerSeconds = 0;
+      showMenu("X", "X", "X");
+  }
+
+    display.setFont(Lato_Semibold_26);
+
+
+       if (running == true) {
+      time_t currentSeconds = now();  
+    time_t secondsRemaining = timer-currentSeconds;
     if (secondsRemaining >= 0) {
     sprintf(buffer,"%02d:%02d",secondsRemaining/60, secondsRemaining%60);
 
@@ -366,13 +441,22 @@ display.setColor(BLACK);
 display.fillRect(0, 28, DISPLAY_WIDTH-10, DISPLAY_HEIGHT-28);
 display.setColor(WHITE);
     
-    display.setFont(Lato_Semibold_26);
 
-    display.drawString(0, 25, buffer);
     }
     else {
-      transitionState(StateTime);
+    sprintf(buffer, "Done!");
     }
+       }
+       else {
+        sprintf(buffer,"SET %02d min",timerSeconds/60);    
+       }
+
+display.setColor(BLACK);
+display.fillRect(0, 25, DISPLAY_WIDTH-1, 28);
+display.setColor(WHITE);
+
+           display.drawString(0, 25, buffer);
+    display.display();
 }
 
 
@@ -454,24 +538,48 @@ display.setColor(WHITE);
 
   }
 }
+  display.display();
+}
 
-static bool showBinary = true;
-
-if (showBinary) {
+void updateBinary(int yOffset) {
+  
   time_t secElapsed = now();
   for (int i=0; i<32; i++) {
     display.setColor((secElapsed&1) == 0 ? BLACK : WHITE);
    
-      display.fillRect(124-i*4, DISPLAY_HEIGHT-4, 4, 4);
+      display.fillRect(124-i*4, yOffset, 4, DISPLAY_HEIGHT - yOffset);
   secElapsed >>= 1;
-   
-  }
-}
 
   display.display();
+
+}
 }
 
+void updateStopwatch(int yOffset) {
+        display.setColor(BLACK);
+display.fillRect(0, yOffset, DISPLAY_WIDTH-10, 28);
+display.setColor(WHITE);
+         char buffer[32];
+    auto diff = millis() - startTime;
+    auto sec = diff/1000;
+      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
+      display.drawString(0, yOffset, buffer);
+        display.display();
+      delay(100);
 
+      if (inputMap&4) {
+        startTime = millis();
+            inputMap &= ~4;
+      }
+      if (inputMap&8) {
+              display.setColor(BLACK);
+display.fillRect(0, yOffset+24, DISPLAY_WIDTH-10, 28);
+display.setColor(WHITE);
+      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
+      display.drawString(0, yOffset+24, buffer);
+            inputMap &= ~8;
+      }
+}
 
 
 
@@ -528,3 +636,32 @@ void sendNTPpacket(IPAddress &address)
   Udp.write(packetBuffer, NTP_PACKET_SIZE);
   Udp.endPacket();
 }
+
+void updateWifiScan(int yOffset, int h) {
+  const uint8_t lineSpacing = 10;
+  display.setColor(WHITE);    
+    display.setFont(ArialMT_Plain_10);
+              display.setTextAlignment(TEXT_ALIGN_RIGHT);
+      display.drawString(DISPLAY_WIDTH-1, 0, "Scanning...");
+              display.setTextAlignment(TEXT_ALIGN_LEFT);
+        display.display();
+
+        display.setColor(BLACK);
+display.fillRect(0, 0, DISPLAY_WIDTH-1, DISPLAY_HEIGHT-1);
+display.setColor(WHITE);
+
+    int n = WiFi.scanNetworks(false, false);
+    
+    if (n == 0) {
+          display.drawString(0, yOffset,"no networks found");
+    } else {
+      
+        for (int i = 0; i <= h/lineSpacing; ++i) {
+         char buffer[64];
+         sprintf(buffer, "%ddBm %c%s", WiFi.RSSI(i), (WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?' ':'*', WiFi.SSID(i).c_str() );
+          display.drawString(0, i*lineSpacing+yOffset, buffer);
+        }
+    }
+           display.display();     
+}
+

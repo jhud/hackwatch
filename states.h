@@ -8,7 +8,9 @@ enum State {
   StateMenu,
   StateStopwatch,
   StateTimer,
-	StateFlashlight
+	StateFlashlight,
+  StateBinary,
+  StateWifiScan
 };
 
 #endif
