@@ -23,17 +23,17 @@
 #include <WiFiUdp.h>
 #include "SSD1306.h" 
 
+#include "util.h"
 #include "states.h"
+#include "layout.h"
+#include "fonts.h"
 
-#define NUM_OF(x) (sizeof(x)/sizeof(x[0])) // Define because it's useful
 
 // Anything we don't want to commit publicly to git (passwords, keys, etc.)
 // You ned to create this file yourself, like:
 // const char* ssid[3] = {"yourwifi", "secondwifi", "3rd..."};  //  your network SSID (name)
 // const char* pass[3] = {"yourpwd", "secondpwd", "3rdpwd..."};       // your network password
 #include "secrets.h"
-
-#include "fonts.h"
 
 //#ifdef LEFT_HAND // if the watch will be worn on the left hand
 
@@ -52,6 +52,8 @@ IPAddress timeServer(216,239,35,8); // time.google.com
 const int timeZone = 1; // Berlin
 
 WiFiUDP Udp;
+
+static const int MENU_TIME_WIDTH = 40;
 
 unsigned long startTime = 0; 
 time_t timer = 0;
@@ -203,8 +205,6 @@ time_now.tv_usec = 0;
   attachInterrupt(digitalPinToInterrupt(buttonPins[1]), inputPressed1, FALLING);
   attachInterrupt(digitalPinToInterrupt(buttonPins[2]), inputPressed2, FALLING);
   attachInterrupt(digitalPinToInterrupt(buttonPins[3]), inputPressed3, FALLING);
-
-
 }
 
 void showMenu(const char * item1, const char * item2, const char * item3) {
@@ -216,9 +216,9 @@ void showMenu(const char * item1, const char * item2, const char * item3) {
     display.drawLine(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH*2/3+2, 0);
     display.drawLine(DISPLAY_WIDTH-2, 0, DISPLAY_WIDTH-1, 0);
         
-      display.setFont(ArialMT_Plain_10);
+      display.setFont(Layout::getFontForHeight(10));
         display.setTextAlignment(TEXT_ALIGN_LEFT);
-      display.drawString(0, 0, "TIME");
+              drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true);
               display.setTextAlignment(TEXT_ALIGN_CENTER);
       display.drawString(DISPLAY_WIDTH/3, 0, item1);
       display.drawString(DISPLAY_WIDTH*2/3, 0, item2);
@@ -239,7 +239,7 @@ void transitionState(State st) {
     case StateTime:
            display.setContrast(127);
       display.clear();
-            showDate(2, 29);
+    showDate(2, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
       break;
 
     case StateMenu:
@@ -342,6 +342,8 @@ void loop()
 
 }
 
+  static int menuSelected = 0;
+
 struct MenuItem {
   char * name;
   State state;
@@ -356,7 +358,6 @@ MenuItem menuItems[] = {
 };
 
 void updateMenu() {
-  static int menuSelected = 0;
 
   if (inputMap&2) {  
       menuSelected+=NUM_OF(menuItems)-1;
@@ -394,6 +395,8 @@ void updateTimer() {
       static int timerSeconds = 0;
       static bool running = false;
 
+              drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true);
+
   if (inputMap&2) {  
       timerSeconds += 600;
       inputMap &= ~2;
@@ -427,82 +430,67 @@ void updateTimer() {
       timerSeconds = 0;
       showMenu("X", "X", "X");
   }
-
-    display.setFont(Lato_Semibold_26);
-
-
+  
        if (running == true) {
       time_t currentSeconds = now();  
     time_t secondsRemaining = timer-currentSeconds;
     if (secondsRemaining >= 0) {
-    sprintf(buffer,"%02d:%02d",secondsRemaining/60, secondsRemaining%60);
-
-display.setColor(BLACK);
-display.fillRect(0, 28, DISPLAY_WIDTH-10, DISPLAY_HEIGHT-28);
-display.setColor(WHITE);
-    
-
+       Layout::drawDigitsInto(0,25,DISPLAY_WIDTH,DISPLAY_HEIGHT-25,secondsRemaining/60, secondsRemaining%60); 
     }
     else {
-    sprintf(buffer, "Done!");
+       Layout::drawStringInto(0,25,DISPLAY_WIDTH,32,"Done!"); 
     }
        }
        else {
-        sprintf(buffer,"SET %02d min",timerSeconds/60);    
+        sprintf(buffer,"SET %02d min",timerSeconds/60); 
+        Layout::drawStringInto(0,25,DISPLAY_WIDTH,DISPLAY_HEIGHT-25,buffer);    
        }
 
-display.setColor(BLACK);
-display.fillRect(0, 25, DISPLAY_WIDTH-1, 28);
-display.setColor(WHITE);
-
-           display.drawString(0, 25, buffer);
     display.display();
 }
 
 
-void showDate(int x, int y) {
+void showDate(int x, int y, int w, int h) {
      char buffer[32];
-    display.setFont(Lato_Hairline_10);
+     
+  Layout::drawStringInto(x, y, w, 10, dayStr(weekday()));
 
-    display.drawString(x, y, dayStr(weekday()));
+      sprintf(buffer,"%02d/%02d/%04d", day(), month(), year());
+  Layout::drawStringInto(x, y+10, w, h-10, buffer);
 
-   display.setFont(ArialMT_Plain_16);
-    sprintf(buffer,"%02d/%02d/%04d", day(), month(), year());
-    display.drawString(x, y+13, buffer);
   }
 
-void showTime(bool nighttime){
-    char buffer[32];
-  
-    if (day() != lastDay) {
-        display.clear();
-      showDate(2, 29);
-    lastDay = day(); 
-    }
-
-
-  const char *timeFont = nighttime ? Lato_Hairline_24 : Lato_Semibold_26;
-
-display.setColor(BLACK);
-display.fillRect(0, 0, DISPLAY_WIDTH-10, 26);
-display.setColor(WHITE);
-
-
-
-int hours = hour();
+void drawTimeInto(int x, int y, int w, int h, bool nighttime) {
+       char buffer[32];
+  int hours = hour();
 if (!nighttime) {
    display.setContrast(127);
 
-    sprintf(buffer,"%02d:%02d:%02d", hours, minute(), second());
+   Layout::drawDigitsInto(x,y,w,h,hours, minute(), ':', second());  
 }
 else {
     display.setContrast(0);
 
-    sprintf(buffer,"%02d:%02d", hours, minute());  
+    Layout::drawDigitsInto(x,y,w,h,hours, minute());  
+}
 }
 
-    display.setFont(timeFont);
-    display.drawString(0, 0, buffer);
+void showTime(bool noSeconds){
+    char buffer[32];
+    const int timeHeight = 32;
+
+  if (inputMap&2) {  
+      inputMap &= ~2;
+    transitionState(menuItems[menuSelected].state);
+  }
+  
+    if (day() != lastDay) {
+        display.clear();
+     showDate(2, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
+    lastDay = day(); 
+    }
+
+drawTimeInto(0,0,DISPLAY_WIDTH, timeHeight, noSeconds);
 
 for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
   CalendarEvent event = calendarEvents[i];
@@ -510,19 +498,9 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     int currentSeconds = hour() * 3600 + minute()*60 + second();  
     int secondsRemaining = event.minute*60 - currentSeconds;
     if (secondsRemaining >= 0 && secondsRemaining <= event.countdownMinutes*60) {
-    sprintf(buffer,"%02d:%02d",secondsRemaining/60, secondsRemaining%60);
-
-display.setColor(BLACK);
-display.fillRect(0, 28, DISPLAY_WIDTH-10, DISPLAY_HEIGHT-28);
-display.setColor(WHITE);
-    
-    display.setFont(timeFont);
-
-    display.drawString(0, 25, buffer);
-    
-    display.setFont(ArialMT_Plain_10);
+          Layout::drawDigitsInto(0,28,DISPLAY_WIDTH,32,secondsRemaining/60, secondsRemaining%60);  
         display.setTextAlignment(TEXT_ALIGN_RIGHT);
-    display.drawString(66, 49, event.name);
+    Layout::drawStringInto(66, 28+31, DISPLAY_WIDTH, 10, event.name);
         display.setTextAlignment(TEXT_ALIGN_LEFT);
         const int top = 34;
         const int bot = 53;
@@ -533,7 +511,7 @@ display.setColor(WHITE);
     }
     else if (secondsRemaining == -1) {
              display.clear();
-      showDate(2, 29); 
+      showDate(2, timeHeight-2, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-timeHeight); 
     }
 
   }
@@ -556,14 +534,17 @@ void updateBinary(int yOffset) {
 }
 
 void updateStopwatch(int yOffset) {
-        display.setColor(BLACK);
-display.fillRect(0, yOffset, DISPLAY_WIDTH-10, 28);
-display.setColor(WHITE);
-         char buffer[32];
     auto diff = millis() - startTime;
     auto sec = diff/1000;
-      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
-      display.drawString(0, yOffset, buffer);
+
+     static auto lastTimePrint = 0;
+     lastTimePrint += diff;
+     if (lastTimePrint > 10000) {
+      drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true); 
+      lastTimePrint = 0;
+     }
+
+      Layout::drawDigitsInto(0,yOffset,DISPLAY_WIDTH,32,sec/60, sec%60, '.', ((diff/100)%10)*10);  
         display.display();
       delay(100);
 
@@ -571,12 +552,9 @@ display.setColor(WHITE);
         startTime = millis();
             inputMap &= ~4;
       }
+
       if (inputMap&8) {
-              display.setColor(BLACK);
-display.fillRect(0, yOffset+24, DISPLAY_WIDTH-10, 28);
-display.setColor(WHITE);
-      sprintf(buffer,"%02d:%02d.%02d", sec/60, sec%60, ((diff/100)%10)*10);
-      display.drawString(0, yOffset+24, buffer);
+      Layout::drawDigitsInto(0, yOffset+24, DISPLAY_WIDTH,32, sec/60, sec%60, '.', ((diff/100)%10)*10);
             inputMap &= ~8;
       }
 }
@@ -638,7 +616,7 @@ void sendNTPpacket(IPAddress &address)
 }
 
 void updateWifiScan(int yOffset, int h) {
-  const uint8_t lineSpacing = 10;
+  const uint8_t lineSpacing = 9;
   display.setColor(WHITE);    
     display.setFont(ArialMT_Plain_10);
               display.setTextAlignment(TEXT_ALIGN_RIGHT);
@@ -655,8 +633,10 @@ display.setColor(WHITE);
     if (n == 0) {
           display.drawString(0, yOffset,"no networks found");
     } else {
+
+        const int num = _min(h/lineSpacing, n-1);
       
-        for (int i = 0; i <= h/lineSpacing; ++i) {
+        for (int i = 0; i <= num; ++i) {
          char buffer[64];
          sprintf(buffer, "%ddBm %c%s", WiFi.RSSI(i), (WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?' ':'*', WiFi.SSID(i).c_str() );
           display.drawString(0, i*lineSpacing+yOffset, buffer);
