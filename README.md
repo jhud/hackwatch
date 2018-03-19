@@ -14,7 +14,14 @@ You need to create a file called "secrets.h" which has your WiFi SSID and passwo
 const char ssid[] = "my access point";  //  your network SSID (name)
 const char pass[] = "MyPassword12345";       // your network password
 
-
+# Fabrication
+The SVG file can be printed out, and the pieces cut from 1.5mm rubber. For attaching rubber, here are the methods tried (1 star fail, 5 star excellent):
+ - Stitching with nylon thread *****
+ - Double-sided tape ***
+ - Vulcanising rubber cement **
+ - Electrical tape **
+ - Hot glue *
+ The best method was to stick pieces with double-sided tape, and then stitch any load-bearing joins.
 
 # Major tasks yet to do:
 - Reduce power consumption (i.e. deep sleep)

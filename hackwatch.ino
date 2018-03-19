@@ -21,7 +21,6 @@
 #include <WiFiMulti.h>
 
 #include <WiFiUdp.h>
-#include "SSD1306.h" 
 
 #include "util.h"
 #include "states.h"
@@ -35,16 +34,7 @@
 // const char* pass[3] = {"yourpwd", "secondpwd", "3rdpwd..."};       // your network password
 #include "secrets.h"
 
-//#ifdef LEFT_HAND // if the watch will be worn on the left hand
-
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
-
-//OLED pins to ESP32 GPIOs via this connecthin:
-//OLED_SDA -- GPIO4
-//OLED_SCL -- GPIO15
-//OLED_RST -- GPIO16
-
-SSD1306  display(0x3c, 4, 15); // addr, SDA, SCL (reset = GPIO16)
 
 // NTP Servers:
 IPAddress timeServer(216,239,35,8); // time.google.com
@@ -53,7 +43,8 @@ const int timeZone = 1; // Berlin
 
 WiFiUDP Udp;
 
-static const int MENU_TIME_WIDTH = 40;
+static const int MENU_TIME_WIDTH = 36;
+static const int STATUS_BAR_HEIGHT = 10;
 
 unsigned long startTime = 0; 
 time_t timer = 0;
@@ -91,7 +82,7 @@ void onboardButtonPressed() {
 
         detachInterrupt(INTERUPT_PIN);
         pinMode(INTERUPT_PIN, INPUT);
-        display.displayOff();
+        Layout::enableDisplay(false);
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0,0);
     esp_deep_sleep_start();
 }
@@ -124,13 +115,7 @@ for (int i=0; i<NUM_OF(buttonPins); i++) {
 pinMode(buttonPins[i], INPUT_PULLUP);  
 }
 
-
-  display.init();
-
-
-#ifdef LEFT_HAND
-  display.flipScreenVertically();
-#endif
+  Layout::init(false); // left handed
 
   Serial.begin(115200);
   delay(100);
@@ -142,11 +127,6 @@ pinMode(buttonPins[i], INPUT_PULLUP);
   }
   else {
   
- 
-
-    display.setTextAlignment(TEXT_ALIGN_LEFT);
-    display.setFont(ArialMT_Plain_16);
-
   WiFi.mode(WIFI_STA);
 
   for (int i=0; i<NUM_OF(ssid); i++) {
@@ -156,19 +136,19 @@ pinMode(buttonPins[i], INPUT_PULLUP);
   int status = WL_IDLE_STATUS; 
   int i=0;
   while (status != WL_CONNECTED) {
-    display.clear();
-        display.drawString(0, 0, "Connecting...");
-    display.drawString(0, 14, String(i));
-       display.drawString(0, 32, String(WiFi.status()));
-      display.display();
+    Layout::clear();
+    Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 14, "Connecting...");
+    Layout::drawStringInto(0, 14, DISPLAY_WIDTH, 14, String(i));
+    Layout::drawStringInto(0, 32, DISPLAY_WIDTH, 14, String(WiFi.status()));
+    Layout::swapBuffers();
      status = wifiMulti.run();
 
                     i++;
 
       if (i==5) {
-          display.clear();
-         display.drawString(0, 0, "Timed out. Sleeping.");  
-         display.display(); 
+    Layout::clear();
+    Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 14, "Timed out. Sleeping.");  
+    Layout::swapBuffers();
          WiFi.disconnect();
          WiFi.mode(WIFI_OFF);
          delay(500000);
@@ -182,9 +162,9 @@ pinMode(buttonPins[i], INPUT_PULLUP);
 
   Udp.begin(8888);
 
-    display.clear();
-    display.drawString(0, 0, "Getting time...");
-    display.display();
+    Layout::clear();
+    Layout::drawStringInto(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, "Getting time...");
+    Layout::swapBuffers();
 
 auto ntpTime = getNtpTime();
 timeval time_now; 
@@ -208,23 +188,17 @@ time_now.tv_usec = 0;
 }
 
 void showMenu(const char * item1, const char * item2, const char * item3) {
-        display.setColor(BLACK);
-      display.fillRect(0, 0, DISPLAY_WIDTH, 10);
-        display.setColor(WHITE);
-    display.drawLine(1, 0, 2, 0);
-    display.drawLine(DISPLAY_WIDTH/3, 0, DISPLAY_WIDTH/3+2, 0);
-    display.drawLine(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH*2/3+2, 0);
-    display.drawLine(DISPLAY_WIDTH-2, 0, DISPLAY_WIDTH-1, 0);
-        
-      display.setFont(Layout::getFontForHeight(10));
-        display.setTextAlignment(TEXT_ALIGN_LEFT);
-              drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true);
-              display.setTextAlignment(TEXT_ALIGN_CENTER);
-      display.drawString(DISPLAY_WIDTH/3, 0, item1);
-      display.drawString(DISPLAY_WIDTH*2/3, 0, item2);
-              display.setTextAlignment(TEXT_ALIGN_RIGHT);
-      display.drawString(DISPLAY_WIDTH-1, 0, item3);
-              display.setTextAlignment(TEXT_ALIGN_LEFT);
+
+      Layout::fillRect(0, 0, DISPLAY_WIDTH, 10, BLACK);
+      drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true);
+      Layout::drawStringInto(DISPLAY_WIDTH/3+ 4, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item1, AlignCenter);
+      Layout::drawStringInto(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item2, AlignCenter);
+      Layout::drawStringInto(DISPLAY_WIDTH, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item3, AlignRight);
+
+    Layout::drawLine(1, 0, 2, 0);
+    Layout::drawLine(DISPLAY_WIDTH/3, 0, DISPLAY_WIDTH/3+2, 0);
+    Layout::drawLine(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH*2/3+2, 0);
+    Layout::drawLine(DISPLAY_WIDTH-2, 0, DISPLAY_WIDTH-1, 0);
 }
 
 void transitionState(State st) {
@@ -237,39 +211,34 @@ void transitionState(State st) {
   
   switch(st) {
     case StateTime:
-           display.setContrast(127);
-      display.clear();
+      Layout::setContrast(127);
+      Layout::clear();
     showDate(2, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
       break;
 
     case StateMenu:
-      display.setContrast(127);
-      display.clear();
+      Layout::setContrast(127);
+      Layout::clear();
       showMenu("PREV", "NEXT", "OK");
-      
-      display.setFont( Lato_Semibold_26);
       break;
 
     case StateStopwatch:
       startTime = millis();
-           display.setContrast(127);
-                 display.clear();
-                 showMenu("", "RESET", "LAP");
-         display.setFont( Lato_Semibold_26);
+      Layout::setContrast(127);
+      Layout::clear();
+      showMenu("", "RESET", "LAP");
       break;
 
     case StateTimer:
-           display.setContrast(127);
-      display.clear();
-                 showMenu("+10", "+1", "GO");
-                          display.setFont( Lato_Semibold_26);
+      Layout::setContrast(127);
+      Layout::clear();
+      showMenu("+10", "+1", "GO");
       break;
 
     case StateFlashlight:
-       display.setContrast(255);
-      display.setColor(WHITE);
-      display.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-        display.display();
+          Layout::setContrast(255);
+          Layout::fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, WHITE);
+        Layout::swapBuffers();
       break;
 
      case StateWifiScan:
@@ -363,8 +332,7 @@ void updateMenu() {
       menuSelected+=NUM_OF(menuItems)-1;
       menuSelected %= NUM_OF(menuItems);
 
-      display.setColor(BLACK);
-      display.fillRect(0, 24, DISPLAY_WIDTH, 36);
+      Layout::fillRect(0, 24, DISPLAY_WIDTH, 36, BLACK);
       
       inputMap &= ~2;
   }
@@ -372,9 +340,8 @@ void updateMenu() {
   if (inputMap&4) {  
       menuSelected++;
       menuSelected %= NUM_OF(menuItems);
-
-      display.setColor(BLACK);
-      display.fillRect(0, 24, DISPLAY_WIDTH, 36);
+      
+      Layout::fillRect(0, 24, DISPLAY_WIDTH, 36, BLACK);
       
       inputMap &= ~4;
   }
@@ -385,9 +352,16 @@ void updateMenu() {
       return;
   }
 
-      display.setColor(WHITE);
-  display.drawString(0,24, menuItems[menuSelected].name);
-  display.display();
+  const int topBarHeight = 12;
+  const int height = DISPLAY_HEIGHT - topBarHeight;
+  const int selectedHeight = 32;
+  const int unselectedHeight = (height-selectedHeight) / 2;
+  
+  
+  Layout::drawStringInto(0,topBarHeight, DISPLAY_WIDTH, unselectedHeight, menuItems[(menuSelected+NUM_OF(menuItems)-1)%NUM_OF(menuItems)].name);
+  Layout::drawStringInto(0,topBarHeight+unselectedHeight, DISPLAY_WIDTH, selectedHeight, menuItems[menuSelected].name);
+  Layout::drawStringInto(0,topBarHeight+unselectedHeight+selectedHeight, DISPLAY_WIDTH, unselectedHeight, menuItems[(menuSelected+1)%NUM_OF(menuItems)].name);
+  Layout::swapBuffers();
 }
 
 void updateTimer() {
@@ -446,7 +420,7 @@ void updateTimer() {
         Layout::drawStringInto(0,25,DISPLAY_WIDTH,DISPLAY_HEIGHT-25,buffer);    
        }
 
-    display.display();
+    Layout::swapBuffers();
 }
 
 
@@ -464,28 +438,31 @@ void drawTimeInto(int x, int y, int w, int h, bool nighttime) {
        char buffer[32];
   int hours = hour();
 if (!nighttime) {
-   display.setContrast(127);
-
+    Layout::setContrast(127);
    Layout::drawDigitsInto(x,y,w,h,hours, minute(), ':', second());  
 }
 else {
-    display.setContrast(0);
-
+    Layout::setContrast(0);
     Layout::drawDigitsInto(x,y,w,h,hours, minute());  
 }
 }
 
 void showTime(bool noSeconds){
     char buffer[32];
-    const int timeHeight = 32;
+    const int timeHeight = 28;
+    const int appointmentHeight = 28;
+
+
 
   if (inputMap&2) {  
       inputMap &= ~2;
     transitionState(menuItems[menuSelected].state);
+    return;
   }
+
   
     if (day() != lastDay) {
-        display.clear();
+     Layout::clear();
      showDate(2, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
     lastDay = day(); 
     }
@@ -498,39 +475,35 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     int currentSeconds = hour() * 3600 + minute()*60 + second();  
     int secondsRemaining = event.minute*60 - currentSeconds;
     if (secondsRemaining >= 0 && secondsRemaining <= event.countdownMinutes*60) {
-          Layout::drawDigitsInto(0,28,DISPLAY_WIDTH,32,secondsRemaining/60, secondsRemaining%60);  
-        display.setTextAlignment(TEXT_ALIGN_RIGHT);
-    Layout::drawStringInto(66, 28+31, DISPLAY_WIDTH, 10, event.name);
-        display.setTextAlignment(TEXT_ALIGN_LEFT);
+          Layout::drawDigitsInto(0, timeHeight-2, DISPLAY_WIDTH,appointmentHeight,secondsRemaining/60, secondsRemaining%60);  
+       // display.setTextAlignment(TEXT_ALIGN_RIGHT);
+    Layout::drawStringInto(66, timeHeight+appointmentHeight-4, DISPLAY_WIDTH, DISPLAY_HEIGHT-(timeHeight+appointmentHeight)+3, event.name);
+       // display.setTextAlignment(TEXT_ALIGN_LEFT);
         const int top = 34;
         const int bot = 53;
         const int mid = (top+bot)/2;
-    display.drawLine(72, top, 78, mid);
-    display.drawLine(72, bot, 78, mid);
-    display.drawVerticalLine(72, top, bot-top);
+    Layout::drawLine(72, top, 78, mid);
+    Layout::drawLine(72, bot, 78, mid);
+    Layout::drawLine(72, top, 72, bot-top);
     }
     else if (secondsRemaining == -1) {
-             display.clear();
+      Layout::clear();
       showDate(2, timeHeight-2, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-timeHeight); 
     }
 
   }
 }
-  display.display();
+  Layout::swapBuffers();
 }
 
 void updateBinary(int yOffset) {
   
   time_t secElapsed = now();
   for (int i=0; i<32; i++) {
-    display.setColor((secElapsed&1) == 0 ? BLACK : WHITE);
-   
-      display.fillRect(124-i*4, yOffset, 4, DISPLAY_HEIGHT - yOffset);
-  secElapsed >>= 1;
-
-  display.display();
-
-}
+    Layout::fillRect(124-i*4, yOffset, 4, DISPLAY_HEIGHT - yOffset, (secElapsed&1) == 0 ? BLACK : WHITE);
+    secElapsed >>= 1;
+  }
+  Layout::swapBuffers();
 }
 
 void updateStopwatch(int yOffset) {
@@ -544,8 +517,8 @@ void updateStopwatch(int yOffset) {
       lastTimePrint = 0;
      }
 
-      Layout::drawDigitsInto(0,yOffset,DISPLAY_WIDTH,32,sec/60, sec%60, '.', ((diff/100)%10)*10);  
-        display.display();
+      Layout::drawDigitsInto(0,yOffset,DISPLAY_WIDTH,26,sec/60, sec%60, '.', ((diff/100)%10)*10);  
+      Layout::swapBuffers();
       delay(100);
 
       if (inputMap&4) {
@@ -554,7 +527,7 @@ void updateStopwatch(int yOffset) {
       }
 
       if (inputMap&8) {
-      Layout::drawDigitsInto(0, yOffset+24, DISPLAY_WIDTH,32, sec/60, sec%60, '.', ((diff/100)%10)*10);
+      Layout::drawDigitsInto(0, yOffset+26, DISPLAY_WIDTH,26, sec/60, sec%60, '.', ((diff/100)%10)*10);
             inputMap &= ~8;
       }
 }
@@ -617,21 +590,17 @@ void sendNTPpacket(IPAddress &address)
 
 void updateWifiScan(int yOffset, int h) {
   const uint8_t lineSpacing = 9;
-  display.setColor(WHITE);    
-    display.setFont(ArialMT_Plain_10);
-              display.setTextAlignment(TEXT_ALIGN_RIGHT);
-      display.drawString(DISPLAY_WIDTH-1, 0, "Scanning...");
-              display.setTextAlignment(TEXT_ALIGN_LEFT);
-        display.display();
 
-        display.setColor(BLACK);
-display.fillRect(0, 0, DISPLAY_WIDTH-1, DISPLAY_HEIGHT-1);
-display.setColor(WHITE);
+  Layout::drawStringInto(DISPLAY_WIDTH-20, 0, DISPLAY_WIDTH, 10, "Scanning...", AlignRight);
+  Layout::swapBuffers();
+
 
     int n = WiFi.scanNetworks(false, false);
+
+  Layout::clear();
     
     if (n == 0) {
-          display.drawString(0, yOffset,"no networks found");
+          Layout::drawStringInto(0, yOffset, DISPLAY_WIDTH, DISPLAY_WIDTH-yOffset, "no networks found");
     } else {
 
         const int num = _min(h/lineSpacing, n-1);
@@ -639,9 +608,9 @@ display.setColor(WHITE);
         for (int i = 0; i <= num; ++i) {
          char buffer[64];
          sprintf(buffer, "%ddBm %c%s", WiFi.RSSI(i), (WiFi.encryptionType(i) == WIFI_AUTH_OPEN)?' ':'*', WiFi.SSID(i).c_str() );
-          display.drawString(0, i*lineSpacing+yOffset, buffer);
+          Layout::drawStringInto(0, i*lineSpacing+yOffset,DISPLAY_WIDTH, lineSpacing, buffer);
         }
     }
-           display.display();     
+  Layout::swapBuffers();  
 }
 
