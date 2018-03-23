@@ -1,5 +1,5 @@
 # hackwatch
-Want to run your Arduino code anywhere, any time? How about running a webserver from your wrist? This is a smartwatch running on the ESP32 + Arduino + 0.96' OLED. Designed to run on cheap boards that have inbuilt LiPo battery circuitry and an OLED screen. It makes for quite a chunky watch, but the "always on" glow looks very cool, and a 500mAH battery currently lasts 10+ hours without any optimisation. The whole prototype was built for $12.
+Want to run your Arduino code anywhere, any time? How about running a webserver from your wrist? This is a smartwatch running on the ESP32 + Arduino + 0.96' OLED (color or monochrome). Designed to run on cheap boards that have inbuilt LiPo battery circuitry and an OLED screen. It makes for quite a chunky watch, but the "always on" glow looks very cool, and a 500mAH battery currently lasts 10+ hours without any optimisation. The whole prototype was built for $12.
 
 ![Picture of hackwatch prototype](hackwatch.jpg?raw=true "Hackwatch prototype")
 
@@ -13,6 +13,8 @@ You need to create a file called "secrets.h" which has your WiFi SSID and passwo
 
 const char ssid[] = "my access point";  //  your network SSID (name)
 const char pass[] = "MyPassword12345";       // your network password
+
+If you have an SSD1306 monochrome display, remove the #define COLOR_SCREEN. If you have an SSD1331 color display, set that define. Make sure you have the correct pins set in layout.cpp.
 
 # Fabrication
 The SVG file can be printed out, and the pieces cut from 1.5mm rubber. For attaching rubber, here are the methods tried (1 star fail, 5 star excellent):
