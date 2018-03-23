@@ -64,8 +64,7 @@ CalendarEvent calendarEvents[] = {
   {"Train OK", 3, 10*60, 60},
   {"Train OK", 4, 10*60, 60},
   {"Train OK", 5, 10*60, 60},
-  {"U1 Schlesi", 5, 20*60 + 02, 45},
-  {"U6 H'ches Tr", 5, 20*60 + 17, 14},
+  {"H'str 277", 5, 20*60 + 18, 45},
   {"Train OK", 6, 10*60, 60},
   {"FL aerial", 7, 13*60, 60}, 
   {"FL stretch", 1, 12*60, 60}
@@ -132,6 +131,7 @@ pinMode(buttonPins[i], INPUT_PULLUP);
   for (int i=0; i<NUM_OF(ssid); i++) {
       wifiMulti.addAP(ssid[i], pass[i]);
   }
+
 
   int status = WL_IDLE_STATUS; 
   int i=0;
@@ -265,6 +265,11 @@ if (inputMap&1) {
 
 void loop()
 {  
+  //Layout::clear();
+ //       Layout::drawStringInto(0,0,DISPLAY_WIDTH,16,"| | . X O");   
+//delay(10000);
+//return;
+  
   int hours = hour();
   const bool nighttime = (hours > 21) || (hours < 7);
 
@@ -484,7 +489,7 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
         const int mid = (top+bot)/2;
     Layout::drawLine(72, top, 78, mid);
     Layout::drawLine(72, bot, 78, mid);
-    Layout::drawLine(72, top, 72, bot-top);
+    Layout::drawLine(72, top, 72, bot);
     }
     else if (secondsRemaining == -1) {
       Layout::clear();

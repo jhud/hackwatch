@@ -7,11 +7,10 @@ enum Alignment {
   AlignRight
 };
 
-//#define COLOR_SCREEN
+#define COLOR_SCREEN
 
 #ifdef COLOR_SCREEN
-#define DISPLAY_WIDTH 96
-#define DISPLAY_HEIGHT 64
+#include "SSD1331Extended.h"
 #else
 #include "SSD1306.h" 
 #endif

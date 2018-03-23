@@ -1,13 +1,21 @@
 #include <Arduino.h>
 
-#include "fonts.h"
 #include "layout.h"
+#include "fonts.h"
 #include "util.h"
+
+static const int HEIGHT_INDEX = 1; // From the font format at http://oleddisplay.squix.ch/
+
+static const char * fonts[] = {Lato_Regular_32, Lato_Semibold_26, Lato_Light_24, Lato_Regular_20, Lato_Hairline_16, Lato_Regular_12, ArialMT_Plain_10};
+
+static const OLEDDISPLAY_TEXT_ALIGNMENT alignments[] = {TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT};
+
+
 
 #ifdef COLOR_SCREEN
 
 
-#include "ESP32_SSD1331.h"
+#include "SSD1331Extended.h"
 
 const uint8_t SCLK_OLED =  14; //SCLK
 const uint8_t MOSI_OLED =  13; //MOSI (Master Output Slave Input)
@@ -16,7 +24,7 @@ const uint8_t CS_OLED = 15;
 const uint8_t DC_OLED =  16; //OLED DC(Data/Command)
 const uint8_t RST_OLED =  4; //OLED Reset
   
-ESP32_SSD1331 display(SCLK_OLED, MISO_OLED, MOSI_OLED, CS_OLED, DC_OLED, RST_OLED);
+SSD1331Extended display(SCLK_OLED, MISO_OLED, MOSI_OLED, CS_OLED, DC_OLED, RST_OLED);
 
 #else
 
@@ -26,19 +34,15 @@ ESP32_SSD1331 display(SCLK_OLED, MISO_OLED, MOSI_OLED, CS_OLED, DC_OLED, RST_OLE
 //OLED_RST -- GPIO16
 SSD1306  display(0x3c, 4, 15); // addr, SDA, SCL (reset = GPIO16)
 
-static const int HEIGHT_INDEX = 1; // From the font format at http://oleddisplay.squix.ch/
-
-static const char * fonts[] = {Lato_Regular_32, Lato_Semibold_26, Lato_Light_24, Lato_Regular_20, Lato_Hairline_16, Lato_Regular_12, ArialMT_Plain_10};
-
-static const OLEDDISPLAY_TEXT_ALIGNMENT alignments[] = {TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT};
-
-
 #endif
 
 
 void Layout::init(bool leftHanded) {
   #ifdef COLOR_SCREEN
     display.SSD1331_Init();
+     display.CommandWrite(0xA0); //Remap & Color Depth setting　
+     display.CommandWrite(0b01110010); //A[7:6] = 01; 65k color format
+
    #else
   display.init();
 
@@ -60,6 +64,9 @@ void Layout::setContrast(int val) {
 const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alignment align) {
 
 #ifdef COLOR_SCREEN
+  display.setTextAlignment(alignments[(int)align]);
+      display.setFont(Layout::getFontForSize(str, w,h));
+        display.drawString(x, y, str);
 #else
   static const int yOffset =  (h>22 ? 3:1);
   
@@ -90,8 +97,6 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
       }
   
   const char * Layout::getFontForSize( String str, unsigned char width, unsigned char height) {
-    #ifdef COLOR_SCREEN
-#else
   	for (int i = 0; i < NUM_OF(fonts); i++ )
   	{
 		auto fontHeight = fonts[i][HEIGHT_INDEX];
@@ -108,12 +113,10 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
   		}
   	}
   	return fonts[NUM_OF(fonts)-1];
-    #endif
   }
   
 const char * Layout::getFontForHeight(unsigned char height) {
-  #ifdef COLOR_SCREEN
-#else
+
 	for (int i = 0; i < NUM_OF(fonts); i++ )
 	{
 		auto fontHeight = fonts[i][HEIGHT_INDEX];
@@ -122,7 +125,6 @@ const char * Layout::getFontForHeight(unsigned char height) {
 		}
 	}
 	return fonts[NUM_OF(fonts)-1];
-  #endif
 }
 
 void Layout::clear() {
@@ -158,6 +160,8 @@ void Layout::enableDisplay(bool on) {
 
 void Layout::fillRect(int x, int y, int w, int h, Color color) {
     #ifdef COLOR_SCREEN
+    display.Drawing_Rectangle_Fill(x, y, w, h, 10,10,10, 40,0,0);
+    
 #else
       display.setColor(color == 0 ? BLACK : WHITE);
    
