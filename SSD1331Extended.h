@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2016 by Daniel Eichhorn
  * Copyright (c) 2016 by Fabrice Weinberg
+ * Modified Work Copyright (c) 2018 by James Hudson
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,9 +63,19 @@
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 #endif
 
+
+#define RGB16(r, g, b) ((b << 11) | (r << 5) | (g))
+#define C_R(color) ((color>>5)&31)
+#define C_G(color) ((color)&63)
+#define C_B(color) ((color>>11))
+
 enum OLEDDISPLAY_COLOR {
   BLACK = 0,
-  WHITE = 1,
+  WHITE = 0xFFFF,
+  LIGHT_BLUE = RGB16(2,3,31),
+  BLUE = RGB16(0, 0, 31),
+  RED = RGB16(31,0,0),
+  GREEN = RGB16(0,63,0),
   INVERSE = 2
 };
 
@@ -81,12 +92,12 @@ class SSD1331Extended : public ESP32_SSD1331 {
 	  SSD1331Extended(uint8_t sck, uint8_t miso, uint8_t mosi, uint8_t cs, uint8_t dc, uint8_t rst); 
 
     // Draws a string at the given location
-    void drawString(int16_t x, int16_t y, String text);
+    void drawString(int16_t x, int16_t y, String text, uint16_t color);
 
     // Draws a String with a maximum width at the given location.
     // If the given String is wider than the specified width
     // The text will be wrapped to the next line at a space or dash
-    void drawStringMaxWidth(int16_t x, int16_t y, uint16_t maxLineWidth, String text);
+    void drawStringMaxWidth(int16_t x, int16_t y, uint16_t maxLineWidth, String text, uint16_t color);
 
     // Returns the width of the const char* with the current
     // font settings
@@ -109,7 +120,7 @@ class SSD1331Extended : public ESP32_SSD1331 {
   protected:
 
     OLEDDISPLAY_TEXT_ALIGNMENT   textAlignment = TEXT_ALIGN_LEFT;
-    OLEDDISPLAY_COLOR            color         = WHITE;
+    uint16_t            color         = WHITE;
 
     const char          *fontData              = 0;
 
@@ -117,9 +128,9 @@ class SSD1331Extended : public ESP32_SSD1331 {
     static char* utf8ascii(String s);
     static byte utf8ascii(byte ascii);
 
-    void inline drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData) __attribute__((always_inline));
+    void inline drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData,  uint16_t color) __attribute__((always_inline));
 
-    void drawStringInternal(int16_t xMove, int16_t yMove, char* text, uint16_t textLength, uint16_t textWidth);
+    void drawStringInternal(int16_t xMove, int16_t yMove, char* text, uint16_t textLength, uint16_t textWidth, uint16_t color);
 
 };
 

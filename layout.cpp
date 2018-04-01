@@ -61,12 +61,13 @@ void Layout::setContrast(int val) {
 
 }
 
-const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alignment align) {
+const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alignment align, Color color) {
 
 #ifdef COLOR_SCREEN
+  display.Display_Clear(x,y,x+w, y+h);
   display.setTextAlignment(alignments[(int)align]);
       display.setFont(Layout::getFontForSize(str, w,h));
-        display.drawString(x, y, str);
+        display.drawString(x, y, str, color);
 #else
   static const int yOffset =  (h>22 ? 3:1);
   
@@ -82,17 +83,17 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
 #endif
 }
   
-  const char * Layout::drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s) {
+  const char * Layout::drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color) {
 	         char buffer[20];
 			 sprintf(buffer, "%02d:%02d:%02d", hr, m, s);
-			 drawStringInto(x, y, w, h, buffer);
+			 drawStringInto(x, y, w, h, buffer, AlignLeft, color);
 
     }
 	
-    const char * Layout::drawDigitsInto(int x, int y, int w, int h, int m, int s) {
+    const char * Layout::drawDigitsInto(int x, int y, int w, int h, int m, int s, Color color) {
   	         char buffer[20];
   			 sprintf(buffer, "%02d:%02d", m, s);
-  			 drawStringInto(x, y, w, h, buffer);
+  			 drawStringInto(x, y, w, h, buffer, AlignLeft, color);
 
       }
   
@@ -160,7 +161,7 @@ void Layout::enableDisplay(bool on) {
 
 void Layout::fillRect(int x, int y, int w, int h, Color color) {
     #ifdef COLOR_SCREEN
-    display.Drawing_Rectangle_Fill(x, y, w, h, 10,10,10, 40,0,0);
+    display.Drawing_Rectangle_Fill(x, y, w, h, C_R(color),  C_G(color),  C_B(color), C_R(color),  C_G(color),  C_B(color));
     
 #else
       display.setColor(color == 0 ? BLACK : WHITE);
@@ -171,7 +172,7 @@ void Layout::fillRect(int x, int y, int w, int h, Color color) {
 
 void Layout::drawLine(int x, int y, int x2, int y2, Color color) {
     #ifdef COLOR_SCREEN
-    display.Drawing_Line(x,y,x2,y2, 3, 3, 3);
+    display.Drawing_Line(x,y,x2,y2, C_R(color),  C_G(color),  C_B(color));
 #else
       display.setColor(color == 0 ? BLACK : WHITE);
       display.drawLine(x, y, x2, y2); 

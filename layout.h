@@ -30,13 +30,13 @@ public:
 
   static void setContrast(int val);
 
-  static void drawLine(int x, int y, int x2, int y2, Color color = 255);
-  static void fillRect(int x, int y, int w, int h, Color color);
+  static void drawLine(int x, int y, int x2, int y2, Color color = WHITE);
+  static void fillRect(int x, int y, int w, int h, Color color = WHITE);
 
-  static const char * drawDigitsInto(int x, int y, int w, int h, int m, int s);
-  static const char * drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s);
+  static const char * drawDigitsInto(int x, int y, int w, int h, int m, int s, Color color = WHITE);
+  static const char * drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color = WHITE);
   
-  static const char * drawStringInto(int x, int y, int w, int h, String str, Alignment align = AlignLeft);
+  static const char * drawStringInto(int x, int y, int w, int h, String str, Alignment align = AlignLeft, Color color = WHITE);
 
 	static const char * getFontForHeight(unsigned char height);
   static const char * getFontForSize( String str, unsigned char width, unsigned char height);

@@ -1,16 +1,12 @@
 
 #include "SSD1331Extended.h"
 
-char r = 0;
-char g = 0;
-char b = 31;
-
 SSD1331Extended::SSD1331Extended(uint8_t sck, uint8_t miso, uint8_t mosi, uint8_t cs, uint8_t dc, uint8_t rst) :
   ESP32_SSD1331(sck, miso, mosi, cs, dc, rst) {
   	
   }
 
-void SSD1331Extended::drawStringInternal(int16_t xMove, int16_t yMove, char* text, uint16_t textLength, uint16_t textWidth) {
+void SSD1331Extended::drawStringInternal(int16_t xMove, int16_t yMove, char* text, uint16_t textLength, uint16_t textWidth, uint16_t color) {
   uint8_t textHeight       = pgm_read_byte(fontData + HEIGHT_POS);
   uint8_t firstChar        = pgm_read_byte(fontData + FIRST_CHAR_POS);
   uint16_t sizeOfJumpTable = pgm_read_byte(fontData + CHAR_NUM_POS)  * JUMPTABLE_BYTES;
@@ -18,12 +14,6 @@ void SSD1331Extended::drawStringInternal(int16_t xMove, int16_t yMove, char* tex
   uint8_t cursorX         = 0;
   uint8_t cursorY         = 0;
 
-	if (textHeight < 16) {
-		r=31; g=0; b=0;
-	}
-	else {
-		r=0; g=0; b=31;		
-	}
 
   switch (textAlignment) {
     case TEXT_ALIGN_CENTER_BOTH:
@@ -59,7 +49,7 @@ void SSD1331Extended::drawStringInternal(int16_t xMove, int16_t yMove, char* tex
       if (!(msbJumpToChar == 255 && lsbJumpToChar == 255)) {
         // Get the position of the char data
         uint16_t charDataPosition = JUMPTABLE_START + sizeOfJumpTable + ((msbJumpToChar << 8) + lsbJumpToChar);
-        drawInternal(xPos, yPos, currentCharWidth, textHeight, fontData, charDataPosition, charByteSize);
+        drawInternal(xPos, yPos, currentCharWidth, textHeight, fontData, charDataPosition, charByteSize, color);
       }
 
       cursorX += currentCharWidth;
@@ -68,7 +58,7 @@ void SSD1331Extended::drawStringInternal(int16_t xMove, int16_t yMove, char* tex
 }
 
 
-void SSD1331Extended::drawString(int16_t xMove, int16_t yMove, String strUser) {
+void SSD1331Extended::drawString(int16_t xMove, int16_t yMove, String strUser, uint16_t color) {
   uint16_t lineHeight = pgm_read_byte(fontData + HEIGHT_POS);
 
   // char* text must be freed!
@@ -91,13 +81,13 @@ void SSD1331Extended::drawString(int16_t xMove, int16_t yMove, String strUser) {
   char* textPart = strtok(text,"\n");
   while (textPart != NULL) {
     uint16_t length = strlen(textPart);
-    drawStringInternal(xMove, yMove - yOffset + (line++) * lineHeight, textPart, length, getStringWidth(textPart, length));
+    drawStringInternal(xMove, yMove - yOffset + (line++) * lineHeight, textPart, length, getStringWidth(textPart, length), color);
     textPart = strtok(NULL, "\n");
   }
   free(text);
 }
 
-void SSD1331Extended::drawStringMaxWidth(int16_t xMove, int16_t yMove, uint16_t maxLineWidth, String strUser) {
+void SSD1331Extended::drawStringMaxWidth(int16_t xMove, int16_t yMove, uint16_t maxLineWidth, String strUser, uint16_t color) {
   uint16_t firstChar  = pgm_read_byte(fontData + FIRST_CHAR_POS);
   uint16_t lineHeight = pgm_read_byte(fontData + HEIGHT_POS);
 
@@ -125,7 +115,7 @@ void SSD1331Extended::drawStringMaxWidth(int16_t xMove, int16_t yMove, uint16_t 
         preferredBreakpoint = i;
         widthAtBreakpoint = strWidth;
       }
-      drawStringInternal(xMove, yMove + (lineNumber++) * lineHeight , &text[lastDrawnPos], preferredBreakpoint - lastDrawnPos, widthAtBreakpoint);
+      drawStringInternal(xMove, yMove + (lineNumber++) * lineHeight , &text[lastDrawnPos], preferredBreakpoint - lastDrawnPos, widthAtBreakpoint, color);
       lastDrawnPos = preferredBreakpoint + 1;
       // It is possible that we did not draw all letters to i so we need
       // to account for the width of the chars from `i - preferredBreakpoint`
@@ -137,7 +127,7 @@ void SSD1331Extended::drawStringMaxWidth(int16_t xMove, int16_t yMove, uint16_t 
 
   // Draw last part if needed
   if (lastDrawnPos < length) {
-    drawStringInternal(xMove, yMove + lineNumber * lineHeight , &text[lastDrawnPos], length - lastDrawnPos, getStringWidth(&text[lastDrawnPos], length - lastDrawnPos));
+    drawStringInternal(xMove, yMove + lineNumber * lineHeight , &text[lastDrawnPos], length - lastDrawnPos, getStringWidth(&text[lastDrawnPos], length - lastDrawnPos), color);
   }
 
   free(text);
@@ -176,46 +166,70 @@ void SSD1331Extended::setFont(const char *fontData) {
   this->fontData = fontData;
 }
 
-//drawInternal(xPos, yPos, currentCharWidth, textHeight, fontData, charDataPosition, charByteSize);
-void inline SSD1331Extended::drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData) {
-  if (width < 0 || height < 0) return;
-  if (yMove + height < 0 || yMove > DISPLAY_HEIGHT)  return;
-  if (xMove + width  < 0 || xMove > DISPLAY_WIDTH)   return;
+//#define DEBUG_DRAW
 
-  /*Serial.print("char width ");
+//drawInternal(xPos, yPos, currentCharWidth, textHeight, fontData, charDataPosition, charByteSize);
+void inline SSD1331Extended::drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData, uint16_t color) {
+/*  if (width < 0 || height < 0) return;
+  if (yMove + height < 0 || yMove > DISPLAY_HEIGHT)  return;
+  if (xMove + width  < 0 || xMove > DISPLAY_WIDTH)   return;*/
+
+#ifdef DEBUG_DRAW
+  Serial.print("width ");
   Serial.println(width);
   Serial.print("height ");
   Serial.println(height);
-  Serial.println(bytesInData);*/
+  Serial.print("bytes ");
+  Serial.println(bytesInData);
+#endif
+		
+  const int skip = (8-(height))&7;
+
+	uint8_t com[6];
+	com[0] = 0x15; //Set Column Address
+	com[3] = 0x75; //Set Row Address
 
   int i=0;
   for (int x= xMove; x< xMove+width; x++) {
   for (int y= yMove; y< yMove+height; y++) {
 
+  	if ((i>>3)>=bytesInData) {
+  		return;
+  	}
 
     byte currentByte = pgm_read_byte(data + offset + (i>>3));
 
 
+
+#ifdef DEBUG_DRAW
+	Serial.print(col==0?"." : "*");
+#endif
+
+
+
 	char col = (currentByte >> (i&7))&1;
+	if (col > 0) {
 
-	//Serial.print(col==0?"." : "*");
 
-	if ((i>>3)<bytesInData) {
-		    Drawing_Pixel_65kColor(x, y, col * r, col << g, col * b);
+	      com[1] = x;
+	      com[2] = x;
+
+	      com[4] = y;
+	      com[5] = y;
+
+	    CommandWriteBytes(com, 6);
+	    DataWriteBytes((uint8_t*)&color, 2);
 	}
-	else {
-		    Drawing_Pixel_65kColor(x, y, 0,0,0);
-		}
-
 			i++;
 
 
   }
-  //Serial.print(8-(height&7));
-  i += 8-(height&7);
-  //Serial.println();
+  i += skip;
 }
-//Serial.println();
+
+#ifdef DEBUG_DRAW
+Serial.println();
+#endif
 }
 
 

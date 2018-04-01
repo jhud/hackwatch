@@ -9,7 +9,7 @@ enum State {
   StateStopwatch,
   StateTimer,
 	StateFlashlight,
-  StateBinary,
+  StateEnvironment,
   StateWifiScan
 };
 
