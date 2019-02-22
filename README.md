@@ -9,6 +9,14 @@ The "flash" button on the GPIO0 of the development board is repurposed as a func
 
 
 # Setup
+
+## Installation
+
+Install the following dependencies:
+Time (from Arduino library manager
+git clone https://github.com/mgo-tec/ESP32_SSD1331
+
+
 You need to create a file called "secrets.h" which has your WiFi SSID and password:
 
 const char ssid[] = "my access point";  //  your network SSID (name)
