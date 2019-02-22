@@ -6,9 +6,9 @@
 
 static const int HEIGHT_INDEX = 1; // From the font format at http://oleddisplay.squix.ch/
 
-static const char * fonts[] = {Lato_Regular_32, Lato_Semibold_26, Lato_Light_24, Lato_Regular_20, Lato_Hairline_16, Lato_Regular_12, ArialMT_Plain_10};
+static const char * fonts[] PROGMEM = {Lato_Regular_32, Lato_Semibold_26, Lato_Regular_24, Lato_Regular_20, Lato_Regular_16, Lato_Regular_12, ArialMT_Plain_10};
 
-static const OLEDDISPLAY_TEXT_ALIGNMENT alignments[] = {TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT};
+static const OLEDDISPLAY_TEXT_ALIGNMENT alignments[] PROGMEM = {TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, TEXT_ALIGN_RIGHT};
 
 
 
@@ -65,6 +65,9 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
 
 #ifdef COLOR_SCREEN
   display.Display_Clear(x,y,x+w, y+h);
+  if (align == AlignRight) {
+    x+=w;
+  }
   display.setTextAlignment(alignments[(int)align]);
       display.setFont(Layout::getFontForSize(str, w,h));
         display.drawString(x, y, str, color);
@@ -85,7 +88,12 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
   
   const char * Layout::drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color) {
 	         char buffer[20];
-			 sprintf(buffer, "%02d:%02d:%02d", hr, m, s);
+          if (s == -1) {
+         sprintf(buffer, "%02d%c%02d", hr, separator, m);          
+          }
+          else {
+			    sprintf(buffer, "%02d:%02d%c%02d", hr, m, separator, s);
+          }
 			 drawStringInto(x, y, w, h, buffer, AlignLeft, color);
 
     }
@@ -177,5 +185,9 @@ void Layout::drawLine(int x, int y, int x2, int y2, Color color) {
       display.setColor(color == 0 ? BLACK : WHITE);
       display.drawLine(x, y, x2, y2); 
       #endif
+}
+
+void Layout::scroll(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t X, uint8_t Y) {
+  display.SSD1331_Copy(x0, y0, x1, y1, X, Y);
 }
 

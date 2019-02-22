@@ -41,5 +41,7 @@ public:
 	static const char * getFontForHeight(unsigned char height);
   static const char * getFontForSize( String str, unsigned char width, unsigned char height);
 
+  static void scroll(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t X, uint8_t Y);
+
 };
 #endif // LAYOUT_H_

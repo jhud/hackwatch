@@ -4,16 +4,13 @@
 // NTP based on https://www.arduino.cc/en/Tutorial/UdpNTPClient
 
 // 55mA draw just showing time, changing every second
-// Needs a small off switch just to save power
-// It should sit flat, even if it means moving the battery to the side in a separate pouch.
 
 // Note on ESP32 sleep modes: the deep and light sleeps both work fine with the RTC,
 // but on the "TTGO ESP32 OLED" board, the OLED screen blanks itself on sleep because of the reset pin
 // configuration. This makes it not so useful for a watch, discounting any hardware mods to
 // the board. So GPIO0 is used as an on/off switch.
 
-// Note on Apple ANCS - I think this needs to have a secure pairing, otherwise the service
-// is not advertised over BLE. This is currently under development for the ESP32 Arduino libs
+// Note on Apple ANCS - This is currently under development for the ESP32 Arduino libs
 // but is not yet released.
  
 #include <TimeLib.h> 
@@ -39,14 +36,19 @@
 
 #define UV_SENSOR_ENABLE_GPIO 22
 
+inline float mWcm2ToUVI(float mWcm2) { return mWcm2*3; }
+
+static unsigned char uviBuffer[10*60*12];
+static int bufferPos;
+
 // NTP Servers:
 IPAddress timeServer(216,239,35,8); // time.google.com
 
-const int timeZone = 2; // Berlin
+const int timeZone = 1; // Berlin winter. Summer is 2
 
 WiFiUDP Udp;
 
-static const int MENU_TIME_WIDTH = 36;
+static const int MENU_TIME_WIDTH = 30;
 static const int STATUS_BAR_HEIGHT = 10;
 
 unsigned long startTime = 0; 
@@ -63,15 +65,13 @@ typedef struct CalendarEvent {
 
 // Sunday = 1
 // Saturday = 7
-CalendarEvent calendarEvents[] = {
-  {"Train OK", 2, 10*60, 60},
-  {"Train OK", 3, 10*60, 60},
-  {"Train OK", 4, 10*60, 60},
-  {"Train OK", 5, 10*60, 60},
-  {"H'str 277", 5, 20*60 + 18, 45},
-  {"Train OK", 6, 10*60, 60},
-  {"FL aerial", 7, 14*60, 99}, 
-  {"FL stretch", 1, 12*60, 60}
+CalendarEvent calendarEvents[] PROGMEM = {
+/*  {"Train OK", 2, 10*60, 30},
+  {"Train OK", 3, 10*60, 30},
+  {"Train OK", 4, 10*60, 30},
+  {"Train OK", 5, 10*60, 30},*/
+  {"H'str 277", 5, 16*60 + 45, 30},
+  {"Fl stretch", 1, 12*60, 90}
 };
 
 int buttonPins[] = {32, 25, 26, 27, 35};
@@ -125,6 +125,11 @@ pinMode(buttonPins[i], INPUT_PULLUP);
 }
 
   Layout::init(false); // left handed
+
+memset(uviBuffer, 0, NUM_OF(uviBuffer));
+/*for (int i=0; i<NUM_OF(uviBuffer); i++) {
+  uviBuffer[i] = (i/40)%120;
+}*/
 
   delay(50);
   if (isTimeSet()) {
@@ -200,15 +205,21 @@ time_now.tv_usec = 0;
 void showMenu(const char * item1, const char * item2, const char * item3) {
 
       Layout::fillRect(0, 0, DISPLAY_WIDTH, 10, BLACK);
-      drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true, LIGHT_BLUE);
+      
+      drawTimeInto(0,0,MENU_TIME_WIDTH, STATUS_BAR_HEIGHT, true, LIGHT_BLUE);
+
       Layout::drawStringInto(DISPLAY_WIDTH/3+ 4, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item1, AlignCenter, LIGHT_BLUE);
+       
       Layout::drawStringInto(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item2, AlignCenter, LIGHT_BLUE);
-      Layout::drawStringInto(DISPLAY_WIDTH, 0, DISPLAY_WIDTH/3, STATUS_BAR_HEIGHT, item3, AlignRight, LIGHT_BLUE);
+      Layout::drawStringInto(DISPLAY_WIDTH-22, 0, 22, STATUS_BAR_HEIGHT, item3, AlignRight, LIGHT_BLUE);
+
 
     Layout::drawLine(1, 0, 2, 0);
     Layout::drawLine(DISPLAY_WIDTH/3, 0, DISPLAY_WIDTH/3+2, 0);
     Layout::drawLine(DISPLAY_WIDTH*2/3, 0, DISPLAY_WIDTH*2/3+2, 0);
     Layout::drawLine(DISPLAY_WIDTH-2, 0, DISPLAY_WIDTH-1, 0);
+
+
 }
 
 void transitionState(State st) {
@@ -221,14 +232,18 @@ void transitionState(State st) {
   
   switch(st) {
     case StateTime:
-      Layout::setContrast(127);
       Layout::clear();
     showDate(0, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
       break;
 
     case StateEnvironment:
+    {
       Layout::setContrast(255);
       Layout::clear();
+
+      drawUVGraph();
+
+    }
       break;
 
     case StateMenu:
@@ -299,7 +314,7 @@ void loop()
     case StateEnvironment:
     {
       updateEnvironment(10);  
-      delay(1000);
+      delay(100);
       break;
     }
 
@@ -338,15 +353,19 @@ struct MenuItem {
   State state;
 };
 
-MenuItem menuItems[] = {
-  {"Stopwatch", StateStopwatch},
-  {"Flashlight", StateFlashlight},
-  {"Timer", StateTimer},
+MenuItem menuItems[] PROGMEM = {
   {"Environment", StateEnvironment},
+  {"Stopwatch", StateStopwatch},
+  //{"Flashlight", StateFlashlight},
+  {"Timer", StateTimer},
   {"WiFi Scan", StateWifiScan}
 };
 
 void updateMenu() {
+
+  if (inputMap == 0) {
+    return;
+  }
 
   if (inputMap&2) {  
       menuSelected+=NUM_OF(menuItems)-1;
@@ -374,7 +393,7 @@ void updateMenu() {
 
   const int topBarHeight = 12;
   const int height = DISPLAY_HEIGHT - topBarHeight;
-  const int selectedHeight = 32;
+  const int selectedHeight = 30;
   const int unselectedHeight = (height-selectedHeight) / 2;
   
   
@@ -459,11 +478,9 @@ void drawTimeInto(int x, int y, int w, int h, bool nighttime, Color color) {
        char buffer[32];
   int hours = hour();
 if (!nighttime) {
-    Layout::setContrast(127);
    Layout::drawDigitsInto(x,y,w,h,hours, minute(), ':', second(), color);  
 }
 else {
-    Layout::setContrast(0);
     Layout::drawDigitsInto(x,y,w,h,hours, minute(), color);  
 }
 }
@@ -479,7 +496,7 @@ float mapfloat(float x, float in_min, float in_max, float out_min, float out_max
 
 int averageAnalogRead()
 {
-  byte numberOfReadings = 8;
+  byte numberOfReadings = 4;
   unsigned int runningValue = 0; 
 
     adc1_config_width(ADC_WIDTH_12Bit);
@@ -502,7 +519,7 @@ float readUVSensor() {
   
 
   
-  float uvIntensity = mapfloat(analog_value/2000.0f, 1.0, 2.9, 0.0, 15.0);
+  float uvIntensity = mapfloat(analog_value/2000.0f, 0.99, 2.9, 0.0, 15.0);
 
   /*Serial.print(" UV Intensity (mW/cm^2): ");
   Serial.print(uvIntensity);
@@ -512,9 +529,52 @@ float readUVSensor() {
         digitalWrite(UV_SENSOR_ENABLE_GPIO, LOW);
 
 
-      inputMap &= ~2; // stop this triggering, ADC interferes with this GPIO
+      inputMap &= ~2; // stop this triggering, ADC interferes with this GPIO for some reason
 
 return uvIntensity;
+}
+
+Color colorForUVI(float uvi) {
+  Color color;
+        if (uvi < 3) {
+        color = GREEN;
+      }
+      else if (uvi < 6) {
+        color = YELLOW;
+      }
+      else if (uvi < 8) {
+        color = ORANGE;
+      }
+      else if (uvi < 11) {
+        color = RED;
+      }
+      else {
+        color = VIOLET;
+      }
+      return color;
+}
+
+void updateUVIDisplay(float last_uv) {
+      char buffer[32];
+
+    int brightness = 255;
+      Color color;
+
+      float uvi = mWcm2ToUVI(last_uv); 
+
+if (uvi < 0.4) {
+  brightness = 0;
+}
+else if (uvi < 1.0) {
+  brightness = (uvi-0.4)*500;
+}
+      
+      color = colorForUVI(uvi);
+      sprintf(buffer,"%.01f", uvi); 
+      Layout::fillRect(58, 31, 66, 39, color);
+      Layout::drawStringInto(72, 29, DISPLAY_WIDTH-73, 12, buffer, AlignLeft, color);
+
+      Layout::setContrast(brightness);
 }
 
 void showTime(bool noSeconds){
@@ -524,6 +584,8 @@ void showTime(bool noSeconds){
 
 if (inputMap&16) {
       inputMap &= ~16;
+      transitionState(StateFlashlight);
+      return;
 }
 
   if (inputMap&2) {  
@@ -532,11 +594,26 @@ if (inputMap&16) {
     return;
   }
 
+  
 
-if (noSeconds && lastMinute == minute()) {
+if (lastMinute == minute()) {
+if (noSeconds) {
   return;
 }
+
+}
+
   lastMinute = minute();
+
+    bool sensorUpdated = false;
+    float last_uv = -1;
+  if ((second()%6) == 0) {
+    last_uv = readUVSensor();
+    uviBuffer[bufferPos] = mWcm2ToUVI(last_uv*10);
+    bufferPos++;
+    bufferPos %= NUM_OF(uviBuffer);
+    sensorUpdated = true;
+  }
   
     if (day() != lastDay) {
      Layout::clear();
@@ -552,8 +629,8 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     int currentSeconds = hour() * 3600 + minute()*60 + second();  
     int secondsRemaining = event.minute*60 - currentSeconds;
     if (secondsRemaining >= 0 && secondsRemaining <= event.countdownMinutes*60) {
-          Layout::drawDigitsInto(0, timeHeight-2, DISPLAY_WIDTH,appointmentHeight,secondsRemaining/60, secondsRemaining%60, AlignLeft, RED);  
-    Layout::drawStringInto(66, timeHeight+appointmentHeight-4, DISPLAY_WIDTH, DISPLAY_HEIGHT-(timeHeight+appointmentHeight)+3, event.name, AlignRight, RED);
+          Layout::drawDigitsInto(0, timeHeight-2, DISPLAY_WIDTH,appointmentHeight, secondsRemaining/60, secondsRemaining%60, RED);  
+    Layout::drawStringInto(0, timeHeight+appointmentHeight-4, 66, DISPLAY_HEIGHT-(timeHeight+appointmentHeight)+3, event.name, AlignRight, RED);
 
         const int top = 34;
         const int bot = 53;
@@ -561,50 +638,94 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     Layout::drawLine(72, top, 78, mid, RED);
     Layout::drawLine(72, bot, 78, mid, RED);
     Layout::drawLine(72, top, 72, bot, RED);
+    sensorUpdated = false;
     }
     else if (secondsRemaining == -1) {
       Layout::clear();
       showDate(0, timeHeight-2, DISPLAY_WIDTH, DISPLAY_HEIGHT-timeHeight); 
     }
-
   }
 }
+    if (sensorUpdated) {
+      updateUVIDisplay(last_uv);
+    }
+
   Layout::swapBuffers();
 }
 
 void updateEnvironment(int yOffset) {
 
-int w = DISPLAY_HEIGHT;
-  float uv = readUVSensor();
+  float last_uv = readUVSensor();
 
      char buffer[32];
      
   int y= yOffset;
-  int h = 14;
-      sprintf(buffer,"UV: mW/cm^2"); 
-        Layout::drawStringInto(0, y, w, h, buffer, AlignLeft, BLUE); y += h;
+  int h = 10;
+  const int bucketSize = 20;
+      sprintf(buffer,"UV: %.02f", last_uv); 
+        Layout::drawStringInto(0, y, 50, h, buffer, AlignLeft, BLUE); y += h;
 
-      sprintf(buffer,"%.02f", uv); 
-        Layout::drawStringInto(0, y, w, h, buffer, AlignLeft, WHITE); y += h;
+  Layout::scroll(1, yOffset, DISPLAY_WIDTH-1, DISPLAY_HEIGHT-1, 0, yOffset);
+  static int anim;
+    int start = (NUM_OF(uviBuffer)+bufferPos+anim) % NUM_OF(uviBuffer);
+  int readFrom = start;
+  anim+=bucketSize;
 
-        
-      sprintf(buffer,"UV Index"); 
-        Layout::drawStringInto(0, y, w, h, buffer, AlignLeft, BLUE); y += h;
+  Layout::drawLine(DISPLAY_WIDTH-1, yOffset, DISPLAY_WIDTH-1,  DISPLAY_HEIGHT - 1, BLACK);
 
-      sprintf(buffer,"%.01f", uv*10000/25); 
-        Layout::drawStringInto(0, y, w, h, buffer, AlignLeft, WHITE); y += h;
+  float uvi = 0;
+  for (int j=0; j<bucketSize; j++) {
+    readFrom %= NUM_OF(uviBuffer);
+    auto val = uviBuffer[readFrom];
+
+    if((readFrom%600) == 0) {
+      Layout::drawLine(DISPLAY_WIDTH-1, yOffset, DISPLAY_WIDTH-1, DISPLAY_HEIGHT - 1, BLUE);  
+      sprintf(buffer,"%d", (bufferPos-start)/600-1);  
+      Layout::drawStringInto(DISPLAY_WIDTH-16, y, 10, h, buffer, AlignLeft, BLUE); y += h;   
+    }
+    
+    readFrom++;
+    uvi = _max(uvi, float(val));
+  }
+
+  y = DISPLAY_HEIGHT - uvi/2 - 1;
+  Layout::drawLine(DISPLAY_WIDTH-1, y, DISPLAY_WIDTH-1, DISPLAY_HEIGHT - 1, colorForUVI(uvi/10));
+  
 
   Layout::swapBuffers();
+}
+
+void drawUVGraph() {
+  int pixelWidth = NUM_OF(uviBuffer)/DISPLAY_WIDTH;
+  auto w = NUM_OF(uviBuffer)/pixelWidth;
+int readFrom = NUM_OF(uviBuffer)+bufferPos;
+for (int i=0; i< w; i++) {
+  float uvi = 0;
+  for (int j=0; j<pixelWidth; j++) {
+    readFrom %= NUM_OF(uviBuffer);
+    auto val = uviBuffer[readFrom];
+    readFrom++;
+    uvi = _max(uvi, float(val));
+  }
+
+  Layout::drawLine(i, DISPLAY_HEIGHT - uvi/2 - 1, i, DISPLAY_HEIGHT - 1, colorForUVI(uvi/10));
+}
 }
 
 void updateStopwatch(int yOffset) {
     auto diff = millis() - startTime;
     auto sec = diff/1000;
 
+
+   /* uviBuffer[bufferPos] = (millis()/1000) % 120;
+    bufferPos++;
+    bufferPos %= NUM_OF(uviBuffer);*/
+
+
      static auto lastTimePrint = 0;
      lastTimePrint += diff;
      if (lastTimePrint > 10000) {
-      drawTimeInto(0,0,MENU_TIME_WIDTH, 10, true, WHITE); 
+      drawTimeInto(0,0,MENU_TIME_WIDTH, 11, true, WHITE); 
       lastTimePrint = 0;
      }
 
@@ -637,7 +758,7 @@ time_t getNtpTime()
   while (millis() - beginWait < 1500) {
     int size = Udp.parsePacket();
     if (size >= NTP_PACKET_SIZE) {
-      Serial.println("Receive NTP Response");
+      Serial.println(F("Receive NTP Response"));
       Udp.read(packetBuffer, NTP_PACKET_SIZE);  // read packet into the buffer
       unsigned long secsSince1900;
       // convert four bytes starting at location 40 to a long integer
@@ -704,4 +825,3 @@ void updateWifiScan(int yOffset, int h) {
     }
   Layout::swapBuffers();  
 }
-
