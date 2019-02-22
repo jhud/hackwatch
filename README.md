@@ -13,8 +13,8 @@ The "flash" button on the GPIO0 of the development board is repurposed as a func
 ## Installation
 
 Install the following dependencies:
-Time (from Arduino library manager
-git clone https://github.com/mgo-tec/ESP32_SSD1331
+ - Time (from Arduino library manager)
+ - git clone https://github.com/mgo-tec/ESP32_SSD1331 (for the color SSD1331 display)
 
 
 You need to create a file called "secrets.h" which has your WiFi SSID and password:
