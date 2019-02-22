@@ -7,6 +7,11 @@ Currently, the code uses your WiFi to sync with an NTP server, then show the tim
 
 The "flash" button on the GPIO0 of the development board is repurposed as a function button for the watch.
 
+## Features
+ - Flashlight, Stopwatch, Timer, Wifi Scan, UV Sensor with daily exposure graph
+ - Screen off button
+ - Switch between color or B&W display on the application level, via a high-level UI interface.
+
 
 # Setup
 
