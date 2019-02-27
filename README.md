@@ -39,8 +39,7 @@ The SVG file can be printed out, and the pieces cut from 1.5mm rubber. For attac
  The best method was to stick pieces with double-sided tape, and then stitch any load-bearing joins.
 
 # Major tasks yet to do:
-- Reduce power consumption (i.e. deep sleep)
-- Notifications from phone
+- Big refactor of messy prototype code
+- Reduce power consumption (i.e. deep sleep when not changing display)
 - Take calendar from a server
-- Slow down at night, dim if no program is running. 
 - Piezo chime or vibrate
