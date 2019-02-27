@@ -24,6 +24,8 @@
 #include "layout.h"
 #include "fonts.h"
 
+#include "BLENotifications.h"
+
 #include <driver/adc.h>
 
 // Anything we don't want to commit publicly to git (passwords, keys, etc.)
@@ -47,6 +49,9 @@ IPAddress timeServer(216,239,35,8); // time.google.com
 const int timeZone = 1; // Berlin winter. Summer is 2
 
 WiFiUDP Udp;
+
+
+BLENotifications Notifications;
 
 static const int MENU_TIME_WIDTH = 30;
 static const int STATUS_BAR_HEIGHT = 10;
@@ -189,6 +194,13 @@ time_now.tv_usec = 0;
 
     settimeofday(&time_now, NULL); // as used by the onboard RTC which can survive deep sleeps
     setTime(ntpTime); // @todo use a single system
+
+    Notifications.beginListening([](char * msg)
+  {
+    Serial.println(msg);
+          Layout::fillRect(0, DISPLAY_HEIGHT-20, DISPLAY_WIDTH, 20, BLACK);
+    Layout::drawStringInto(0, DISPLAY_HEIGHT-20, DISPLAY_WIDTH, 20, msg, AlignLeft, LIGHT_BLUE);
+  });
   }
 
 
