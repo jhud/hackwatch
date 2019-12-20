@@ -3,13 +3,15 @@ Want to run your Arduino code anywhere, any time? How about running a webserver 
 
 ![Picture of hackwatch prototype](hackwatch.jpg?raw=true "Hackwatch prototype")
 
-Currently, the code uses your WiFi to sync with an NTP server, then show the time and date. It also has some basic hardcoded calendar functionality, which will remind you when you need to catch buses, etc. I'll improve this project as I need features and find time.
+Currently, the code uses your WiFi to sync with an NTP server, then show the time and date. I'll improve this project as I need features and find time.
 
 The "flash" button on the GPIO0 of the development board is repurposed as a function button for the watch.
 
 ## Features
  - Flashlight, Stopwatch, Timer, Wifi Scan, UV Sensor with daily exposure graph
- - Screen off button
+ - BLE connection to Apple devices, with message notifications
+ - Hardcoded calendar functionality, which will remind you when you need to catch buses, etc.
+ - Screen off button, goes into sleep mode
  - Switch between color or B&W display on the application level, via a high-level UI interface.
 
 
@@ -39,8 +41,6 @@ The SVG file can be printed out, and the pieces cut from 1.5mm rubber. For attac
  The best method was to stick pieces with double-sided tape, and then stitch any load-bearing joins.
 
 # Major tasks yet to do:
-- Reduce power consumption (i.e. deep sleep)
-- Notifications from phone
-- Take calendar from a server
-- Slow down at night, dim if no program is running. 
+- Big refactor of messy prototype code
+- Reduce power consumption (i.e. deep sleep when not changing display)
 - Piezo chime or vibrate
