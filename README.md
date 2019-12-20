@@ -21,8 +21,8 @@ The "flash" button on the GPIO0 of the development board is repurposed as a func
 
 Install the following dependencies:
  - Time (from Arduino library manager)
- - git clone https://github.com/mgo-tec/ESP32_SSD1331 (for the color SSD1331 display)
- - git clone git@github.com:Smartphone-Companions/ESP32NotificationsLib.git (for the Bluetooth LE notifications)
+ - ```git clone https://github.com/mgo-tec/ESP32_SSD1331``` (for the color SSD1331 display)
+ - ```git clone https://github.com/Smartphone-Companions/ESP32NotificationsLib.git``` (for the Bluetooth LE notifications)
 
 
 You need to create a file called "secrets.h" which has your WiFi SSID and password:
