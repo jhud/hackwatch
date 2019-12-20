@@ -1,5 +1,5 @@
 // Smartwatch based on the ESP32 + SSD1306 OLED
-// (c)2017 James Hudson, released under the MIT license
+// (c)2017 James Hudson, released under the GPL-3.0 license
 
 // NTP based on https://www.arduino.cc/en/Tutorial/UdpNTPClient
 
@@ -10,8 +10,6 @@
 // configuration. This makes it not so useful for a watch, discounting any hardware mods to
 // the board. So GPIO0 is used as an on/off switch.
 
-// Note on Apple ANCS - This is currently under development for the ESP32 Arduino libs
-// but is not yet released.
  
 #include <TimeLib.h> 
 #include <WiFi.h>
@@ -24,7 +22,7 @@
 #include "layout.h"
 #include "fonts.h"
 
-#include "BLENotifications.h"
+#include "esp32notifications.h"
 
 #include <driver/adc.h>
 
@@ -46,15 +44,19 @@ static int bufferPos;
 // NTP Servers:
 IPAddress timeServer(216,239,35,8); // time.google.com
 
-const int timeZone = 1; // Berlin winter. Summer is 2
+const int timeZone = 1; // Berlin winter is 1. Summer is 2
 
 WiFiUDP Udp;
 
 
-BLENotifications Notifications;
+BLENotifications notifications;
 
 static const int MENU_TIME_WIDTH = 30;
 static const int STATUS_BAR_HEIGHT = 10;
+static const int TIME_Y_POS = STATUS_BAR_HEIGHT; 
+static const int timeHeight = 28;
+static const int appointmentHeight = 28;
+static const int APPOINTMENT_Y_POS = TIME_Y_POS+timeHeight-2;
 
 unsigned long startTime = 0; 
 time_t timer = 0;
@@ -76,8 +78,9 @@ CalendarEvent calendarEvents[] PROGMEM = {
   {"Train OK", 4, 10*60, 30},
   {"Train OK", 5, 10*60, 30},*/
   {"H'str 277", 5, 16*60 + 45, 30},
-  {"Fl stretch", 1, 12*60, 90}
 };
+
+
 
 int buttonPins[] = {32, 25, 26, 27, 35};
 uint32_t inputMap;
@@ -110,6 +113,31 @@ bool isTimeSet() {
  return (now > 1000);
 }
 
+const char btLogo[] PROGMEM = {0b1000100,0, 0b101000, 0, 0b11111111, 1,0b10101010,0,0b1000100,0};
+
+void onBLEStateChanged(BLENotifications::State state) {
+  uint16_t color = BLUE;
+  switch (state) {
+    case BLENotifications::StateConnected: color = GREEN; break;
+    case BLENotifications::StateDisconnected: color = DARK_GRAY; break;
+  }
+
+  Layout::drawSprite1Bit(60, 1, 5, 9, btLogo, sizeof(btLogo), color);
+}
+
+
+// A notification arrived from the mobile device, ie a social media notification or incoming call.
+void onNotificationArrived(const Notification * notification) {
+    int textHeight = 11;
+
+    String body(notification->message.c_str());
+    body.remove(20);
+
+    Layout::drawStringInto(0, DISPLAY_HEIGHT-textHeight*2-2, DISPLAY_WIDTH, textHeight, notification->title.c_str(), AlignLeft, LIGHT_BLUE);
+    Layout::drawStringInto(0, DISPLAY_HEIGHT-textHeight-2, DISPLAY_WIDTH, textHeight, body, AlignLeft, LIGHT_BLUE);
+}
+
+
 void setup() 
 {
   Serial.begin(115200);
@@ -125,16 +153,13 @@ void setup()
 
   pinMode(0, INPUT); // Let us use flash button on dev board as a function button
 
-for (int i=0; i<NUM_OF(buttonPins); i++) {
-pinMode(buttonPins[i], INPUT_PULLUP);  
-}
+  for (int i=0; i<NUM_OF(buttonPins); i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);  
+  }
 
   Layout::init(false); // left handed
 
-memset(uviBuffer, 0, NUM_OF(uviBuffer));
-/*for (int i=0; i<NUM_OF(uviBuffer); i++) {
-  uviBuffer[i] = (i/40)%120;
-}*/
+  memset(uviBuffer, 0, NUM_OF(uviBuffer));
 
   delay(50);
   if (isTimeSet()) {
@@ -145,63 +170,56 @@ memset(uviBuffer, 0, NUM_OF(uviBuffer));
   }
   else {
   
-  WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_STA);
 
-  for (int i=0; i<NUM_OF(ssid); i++) {
+    for (int i=0; i<NUM_OF(ssid); i++) {
       wifiMulti.addAP(ssid[i], pass[i]);
-  }
+    }
 
 
-  int status = WL_IDLE_STATUS; 
-  int i=0;
-  while (status != WL_CONNECTED) {
-    Layout::clear();
-    Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 18, "Connecting...", AlignLeft, GREEN);
-    Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 18, String(i), AlignLeft, WHITE);
-    Layout::drawStringInto(0, 36, DISPLAY_WIDTH, 18, String(WiFi.status()), AlignLeft, GREEN);
-    Layout::swapBuffers();
-     status = wifiMulti.run();
+    int status = WL_IDLE_STATUS; 
+    int i=0;
+    while (status != WL_CONNECTED) {
+      Layout::clear();
+      Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 18, "Connecting...", AlignLeft, GREEN);
+      Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 18, String(i), AlignLeft, WHITE);
+      Layout::drawStringInto(0, 36, DISPLAY_WIDTH, 18, String(WiFi.status()), AlignLeft, GREEN);
+      Layout::swapBuffers();
+      status = wifiMulti.run();
 
-                    i++;
+      i++;
 
       if (i==5) {
-    Layout::clear();
-    Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 14, "Timed out. Sleeping.", AlignLeft, RED);  
-    Layout::swapBuffers();
-         WiFi.disconnect();
-         WiFi.mode(WIFI_OFF);
-         delay(500000);
-           WiFi.mode(WIFI_STA);
-         i=0;  
+        Layout::clear();
+        Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 14, "Timed out. Sleeping.", AlignLeft, RED);  
+        Layout::swapBuffers();
+        WiFi.disconnect();
+        WiFi.mode(WIFI_OFF);
+        delay(500000);
+        WiFi.mode(WIFI_STA);
+        i=0;  
       }
-          delay(10000);
-  }
+      delay(10000);
+    }
 
-  
-
-  Udp.begin(8888);
+    Udp.begin(8888);
 
     Layout::clear();
     Layout::drawStringInto(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, "Getting time...");
     Layout::swapBuffers();
 
-auto ntpTime = getNtpTime();
-timeval time_now; 
-time_now.tv_sec = ntpTime;
-time_now.tv_usec = 0;
-  
-
+    auto ntpTime = getNtpTime();
+    timeval time_now; 
+    time_now.tv_sec = ntpTime;
+    time_now.tv_usec = 0;
 
     settimeofday(&time_now, NULL); // as used by the onboard RTC which can survive deep sleeps
     setTime(ntpTime); // @todo use a single system
-
-    Notifications.beginListening([](char * msg)
-  {
-    Serial.println(msg);
-          Layout::fillRect(0, DISPLAY_HEIGHT-20, DISPLAY_WIDTH, 20, BLACK);
-    Layout::drawStringInto(0, DISPLAY_HEIGHT-20, DISPLAY_WIDTH, 20, msg, AlignLeft, LIGHT_BLUE);
-  });
   }
+
+  notifications.begin("Hackwatch");
+    notifications.setConnectionStateChangedCallback(onBLEStateChanged);
+    notifications.setNotificationCallback(onNotificationArrived);
 
 
  attachInterrupt(digitalPinToInterrupt(INTERUPT_PIN), onboardButtonPressed, RISING);
@@ -216,7 +234,7 @@ time_now.tv_usec = 0;
 
 void showMenu(const char * item1, const char * item2, const char * item3) {
 
-      Layout::fillRect(0, 0, DISPLAY_WIDTH, 10, BLACK);
+      Layout::fillRect(0, 0, DISPLAY_WIDTH, 10, BLACK, BLACK);
       
       drawTimeInto(0,0,MENU_TIME_WIDTH, STATUS_BAR_HEIGHT, true, LIGHT_BLUE);
 
@@ -245,7 +263,7 @@ void transitionState(State st) {
   switch(st) {
     case StateTime:
       Layout::clear();
-    showDate(0, 29, DISPLAY_WIDTH-2, DISPLAY_HEIGHT-28); 
+    showDate(0, 0, DISPLAY_WIDTH-2, 12); 
       break;
 
     case StateEnvironment:
@@ -279,7 +297,7 @@ void transitionState(State st) {
 
     case StateFlashlight:
           Layout::setContrast(255);
-          Layout::fillRect(0, 0, DISPLAY_WIDTH-1, DISPLAY_HEIGHT-1, WHITE);
+          Layout::fillRect(0, 0, DISPLAY_WIDTH-1, DISPLAY_HEIGHT-1, WHITE, WHITE);
         Layout::swapBuffers();
       break;
 
@@ -383,7 +401,7 @@ void updateMenu() {
       menuSelected+=NUM_OF(menuItems)-1;
       menuSelected %= NUM_OF(menuItems);
 
-      Layout::fillRect(0, 24, DISPLAY_WIDTH, 36, BLACK);
+      Layout::fillRect(0, 24, DISPLAY_WIDTH, 12, BLACK, BLACK);
       
       inputMap &= ~2;
   }
@@ -392,7 +410,7 @@ void updateMenu() {
       menuSelected++;
       menuSelected %= NUM_OF(menuItems);
       
-      Layout::fillRect(0, 24, DISPLAY_WIDTH, 36, BLACK);
+      Layout::fillRect(0, 24, DISPLAY_WIDTH, 12, BLACK, BLACK);
       
       inputMap &= ~4;
   }
@@ -476,14 +494,9 @@ void updateTimer() {
 
 
 void showDate(int x, int y, int w, int h) {
-     char buffer[32];
-     
-
-      sprintf(buffer,"%02d/%02d/%04d", day(), month(), year());
-  Layout::drawStringInto(x, y+10, w, h-10, buffer, AlignLeft, BLUE);
-
-    Layout::drawStringInto(x, y, w, 10, dayStr(weekday()), AlignLeft, BLUE);
-
+  char buffer[32];
+  sprintf(buffer,"%s %02d/%02d", dayShortStr(weekday()), day(), month());
+  Layout::drawStringInto(x, y, w, 10, buffer, AlignLeft, BLUE);
   }
 
 void drawTimeInto(int x, int y, int w, int h, bool nighttime, Color color) {
@@ -531,7 +544,7 @@ float readUVSensor() {
   
 
   
-  float uvIntensity = mapfloat(analog_value/2000.0f, 0.99, 2.9, 0.0, 15.0);
+  float uvIntensity = mapfloat(analog_value/2000.0f, 1.009, 2.9, 0.0, 15.0);
 
   /*Serial.print(" UV Intensity (mW/cm^2): ");
   Serial.print(uvIntensity);
@@ -574,25 +587,25 @@ void updateUVIDisplay(float last_uv) {
 
       float uvi = mWcm2ToUVI(last_uv); 
 
-if (uvi < 0.4) {
-  brightness = 0;
-}
-else if (uvi < 1.0) {
-  brightness = (uvi-0.4)*500;
-}
+      // use UV to control global display dimming
+      if (uvi < 0.2) {
+        brightness = 0;
+      }
+      else if (uvi < 0.8) {
+        brightness = (uvi-0.2)*600;
+      }
       
       color = colorForUVI(uvi);
       sprintf(buffer,"%.01f", uvi); 
-      Layout::fillRect(58, 31, 66, 39, color);
-      Layout::drawStringInto(72, 29, DISPLAY_WIDTH-73, 12, buffer, AlignLeft, color);
+
+      Layout::drawStringInto(76, 0, DISPLAY_WIDTH-77, 12, buffer, AlignLeft, color);
+      Layout::fillRect(71, 3, 3, STATUS_BAR_HEIGHT-4, color, color);
 
       Layout::setContrast(brightness);
 }
 
 void showTime(bool noSeconds){
     char buffer[32];
-    const int timeHeight = 28;
-    const int appointmentHeight = 28;
 
 if (inputMap&16) {
       inputMap &= ~16;
@@ -629,11 +642,11 @@ if (noSeconds) {
   
     if (day() != lastDay) {
      Layout::clear();
-     showDate(0, 29, DISPLAY_WIDTH, DISPLAY_HEIGHT-28); 
+     showDate(0, 0, DISPLAY_WIDTH, 12); 
     lastDay = day(); 
     }
 
-drawTimeInto(0,0,DISPLAY_WIDTH, timeHeight, noSeconds, WHITE);
+drawTimeInto(0, TIME_Y_POS, DISPLAY_WIDTH, timeHeight, noSeconds, WHITE);
 
 for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
   CalendarEvent event = calendarEvents[i];
@@ -641,11 +654,11 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     int currentSeconds = hour() * 3600 + minute()*60 + second();  
     int secondsRemaining = event.minute*60 - currentSeconds;
     if (secondsRemaining >= 0 && secondsRemaining <= event.countdownMinutes*60) {
-          Layout::drawDigitsInto(0, timeHeight-2, DISPLAY_WIDTH,appointmentHeight, secondsRemaining/60, secondsRemaining%60, RED);  
-    Layout::drawStringInto(0, timeHeight+appointmentHeight-4, 66, DISPLAY_HEIGHT-(timeHeight+appointmentHeight)+3, event.name, AlignRight, RED);
+          Layout::drawDigitsInto(0, APPOINTMENT_Y_POS, DISPLAY_WIDTH,appointmentHeight, secondsRemaining/60, secondsRemaining%60, RED);  
+    Layout::drawStringInto(0, APPOINTMENT_Y_POS+appointmentHeight-2, 66, DISPLAY_HEIGHT-(timeHeight+appointmentHeight)+3, event.name, AlignRight, RED);
 
-        const int top = 34;
-        const int bot = 53;
+        const int top = APPOINTMENT_Y_POS+4;
+        const int bot = APPOINTMENT_Y_POS+23;
         const int mid = (top+bot)/2;
     Layout::drawLine(72, top, 78, mid, RED);
     Layout::drawLine(72, bot, 78, mid, RED);
@@ -654,7 +667,7 @@ for (int i=0; i<sizeof(calendarEvents) / sizeof(calendarEvents[0]); i++) {
     }
     else if (secondsRemaining == -1) {
       Layout::clear();
-      showDate(0, timeHeight-2, DISPLAY_WIDTH, DISPLAY_HEIGHT-timeHeight); 
+      showDate(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT-timeHeight); 
     }
   }
 }
@@ -813,7 +826,7 @@ void sendNTPpacket(IPAddress &address)
 }
 
 void updateWifiScan(int yOffset, int h) {
-  const uint8_t lineSpacing = 9;
+  const uint8_t lineSpacing = 13;
 
   Layout::drawStringInto(DISPLAY_WIDTH-20, 0, DISPLAY_WIDTH, 10, "Scanning...", AlignRight);
   Layout::swapBuffers();

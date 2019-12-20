@@ -1,0 +1,10 @@
+Reference, Value, Footprint, Datasheet
+"SW1","SW_Push","Button_Switch_SMD:SW_SPST_TL3342",""
+"SW2","SW_Push","Button_Switch_SMD:SW_SPST_TL3342",""
+"SW3","SW_Push","Button_Switch_SMD:SW_SPST_TL3342",""
+"SW4","SW_Push","Button_Switch_SMD:SW_SPST_TL3342",""
+"R1","33K","Resistor_SMD:R_1206_3216Metric_Pad1.42x1.75mm_HandSolder","~"
+"R2","R","Resistor_SMD:R_1206_3216Metric_Pad1.42x1.75mm_HandSolder","~"
+"R3","R","Resistor_SMD:R_1206_3216Metric_Pad1.42x1.75mm_HandSolder","~"
+"R4","R","Resistor_SMD:R_1206_3216Metric_Pad1.42x1.75mm_HandSolder","~"
+"J1","Pin header","Connector_PinHeader_2.54mm:PinHeader_2x03_P2.54mm_Vertical","~"

@@ -63,18 +63,20 @@
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
 #endif
 
-
 #define RGB16(r, g, b) ((b << 11) | (r << 5) | (g))
 #define C_R(color) ((color>>5)&31)
 #define C_G(color) ((color)&63)
 #define C_B(color) ((color>>11))
 
+// Note that green has an extra bit
 enum OLEDDISPLAY_COLOR {
   BLACK = 0,
   WHITE = 0xFFFF,
+  DARK_GRAY = RGB16(1,2,1),
+  GRAY = RGB16(2,4,2),
   LIGHT_BLUE = RGB16(2,3,31),
   BLUE = RGB16(0, 0, 31),
-  RED = RGB16(31,0,0),
+  RED = RGB16(20,0, 0), // Red does not like to go above 20 for some reason
   GREEN = RGB16(0,63,0),
   YELLOW = RGB16(31,63,0),
   ORANGE = RGB16(31,31,0),
@@ -122,6 +124,9 @@ class SSD1331Extended : public ESP32_SSD1331 {
 
     /* Display functions */
 
+  void drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData,  uint16_t color); //__attribute__((always_inline));
+
+
   protected:
 
     OLEDDISPLAY_TEXT_ALIGNMENT   textAlignment = TEXT_ALIGN_LEFT;
@@ -132,8 +137,6 @@ class SSD1331Extended : public ESP32_SSD1331 {
     // converts utf8 characters to extended ascii
     static char* utf8ascii(String s);
     static byte utf8ascii(byte ascii);
-
-    void inline drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData,  uint16_t color) __attribute__((always_inline));
 
     void drawStringInternal(int16_t xMove, int16_t yMove, char* text, uint16_t textLength, uint16_t textWidth, uint16_t color);
 

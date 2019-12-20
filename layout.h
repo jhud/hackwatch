@@ -31,7 +31,14 @@ public:
   static void setContrast(int val);
 
   static void drawLine(int x, int y, int x2, int y2, Color color = WHITE);
-  static void fillRect(int x, int y, int w, int h, Color color = WHITE);
+  static void fillRect(int x, int y, int w, int h, Color color = WHITE, Color border = WHITE);
+
+  /**
+   * Draw a 1 bit sprite.
+   * Sprites are drawn in vertical runs.
+   * If its height is not a power of 8, then the remainder of the byte is padded with zeros.
+   */
+  static void drawSprite1Bit(int x, int y, int w, int h, const char * data, unsigned int byteLength, Color color);
 
   static const char * drawDigitsInto(int x, int y, int w, int h, int m, int s, Color color = WHITE);
   static const char * drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color = WHITE);

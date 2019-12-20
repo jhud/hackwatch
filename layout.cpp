@@ -167,9 +167,9 @@ void Layout::enableDisplay(bool on) {
   #endif
 }
 
-void Layout::fillRect(int x, int y, int w, int h, Color color) {
+void Layout::fillRect(int x, int y, int w, int h, Color color, Color border) {
     #ifdef COLOR_SCREEN
-    display.Drawing_Rectangle_Fill(x, y, w, h, C_R(color),  C_G(color),  C_B(color), C_R(color),  C_G(color),  C_B(color));
+    display.Drawing_Rectangle_Fill(x, y, x+w, y+h, C_R(color),  C_G(color),  C_B(color), C_R(border),  C_G(border),  C_B(border));
     
 #else
       display.setColor(color == 0 ? BLACK : WHITE);
@@ -180,7 +180,7 @@ void Layout::fillRect(int x, int y, int w, int h, Color color) {
 
 void Layout::drawLine(int x, int y, int x2, int y2, Color color) {
     #ifdef COLOR_SCREEN
-    display.Drawing_Line(x,y,x2,y2, C_R(color),  C_G(color),  C_B(color));
+    display.Drawing_Line(x,y,x2,y2, C_R(color)>>1,  C_G(color),  C_B(color));
 #else
       display.setColor(color == 0 ? BLACK : WHITE);
       display.drawLine(x, y, x2, y2); 
@@ -191,3 +191,6 @@ void Layout::scroll(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t X, u
   display.SSD1331_Copy(x0, y0, x1, y1, X, Y);
 }
 
+void Layout::drawSprite1Bit(int x, int y, int w, int h, const char * data, unsigned int byteLength, Color color) {
+  display.drawInternal(x, y, w, h, data, 0, byteLength, color);
+}

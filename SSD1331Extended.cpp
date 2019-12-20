@@ -167,12 +167,11 @@ void SSD1331Extended::setFont(const char *fontData) {
 }
 
 //#define DEBUG_DRAW
+//void inline SSD1331Ex
+void SSD1331Extended::drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData, uint16_t color) {
 
-//drawInternal(xPos, yPos, currentCharWidth, textHeight, fontData, charDataPosition, charByteSize);
-void inline SSD1331Extended::drawInternal(int16_t xMove, int16_t yMove, int16_t width, int16_t height, const char *data, uint16_t offset, uint16_t bytesInData, uint16_t color) {
-/*  if (width < 0 || height < 0) return;
-  if (yMove + height < 0 || yMove > DISPLAY_HEIGHT)  return;
-  if (xMove + width  < 0 || xMove > DISPLAY_WIDTH)   return;*/
+// Balance green
+color = (color&(~63)) | (C_G(color)>>1);
 
 #ifdef DEBUG_DRAW
   Serial.print("width ");
