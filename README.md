@@ -31,6 +31,10 @@ const char pass[] = "MyPassword12345";       // your network password
 
 If you have an SSD1306 monochrome display, remove the #define COLOR_SCREEN. If you have an SSD1331 color display, set that define. Make sure you have the correct pins set in layout.cpp.
 
+### OSX Troubleshooting
+
+ - On OSX Catalina you might have trouble getting the "TTGO ESP32 OLED" board recognised by Arduino. If so, try installing the driver for the USB chip. https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers
+
 # Fabrication
 The SVG file can be printed out, and the pieces cut from 1.5mm rubber. For attaching rubber, here are the methods tried (1 star fail, 5 star excellent):
  - Stitching with nylon thread *****

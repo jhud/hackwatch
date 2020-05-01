@@ -21,6 +21,7 @@
 #include "states.h"
 #include "layout.h"
 #include "fonts.h"
+#include "web.h"
 
 #include "esp32notifications.h"
 
@@ -44,7 +45,7 @@ static int bufferPos;
 // NTP Servers:
 IPAddress timeServer(216,239,35,8); // time.google.com
 
-const int timeZone = 1; // Berlin winter is 1. Summer is 2
+const int timeZone = 2; // Berlin winter is 1. Summer is 2
 
 WiFiUDP Udp;
 
@@ -73,11 +74,11 @@ typedef struct CalendarEvent {
 // Sunday = 1
 // Saturday = 7
 CalendarEvent calendarEvents[] PROGMEM = {
-/*  {"Train OK", 2, 10*60, 30},
-  {"Train OK", 3, 10*60, 30},
+  {"H'str U8", 1, 11*50, 20},
+ /* {"Train OK", 3, 10*60, 30},
   {"Train OK", 4, 10*60, 30},
   {"Train OK", 5, 10*60, 30},*/
-  {"H'str 277", 5, 16*60 + 45, 30},
+  {"H'str 277", 5, 20*60 + 5, 30},
 };
 
 
@@ -119,7 +120,15 @@ void onBLEStateChanged(BLENotifications::State state) {
   uint16_t color = BLUE;
   switch (state) {
     case BLENotifications::StateConnected: color = GREEN; break;
-    case BLENotifications::StateDisconnected: color = DARK_GRAY; break;
+    case BLENotifications::StateDisconnected:
+      color = DARK_GRAY;
+
+      /* We need to startAdvertising on disconnection, otherwise the ESP 32 will now be invisible.
+      IMO it would make sense to put this in the library to happen automatically, but some people in the Espressif forums
+      were requesting that they would like manual control over re-advertising.*/
+      notifications.startAdvertising(); 
+      
+      break;
   }
 
   Layout::drawSprite1Bit(60, 1, 5, 9, btLogo, sizeof(btLogo), color);
@@ -127,13 +136,13 @@ void onBLEStateChanged(BLENotifications::State state) {
 
 
 // A notification arrived from the mobile device, ie a social media notification or incoming call.
-void onNotificationArrived(const Notification * notification) {
+void onNotificationArrived(const ArduinoNotification * notification, const Notification * rawNotification) {
     int textHeight = 11;
 
-    String body(notification->message.c_str());
-    body.remove(20);
+    String body(notification->message);
+    //body.remove(20);
 
-    Layout::drawStringInto(0, DISPLAY_HEIGHT-textHeight*2-2, DISPLAY_WIDTH, textHeight, notification->title.c_str(), AlignLeft, LIGHT_BLUE);
+    Layout::drawStringInto(0, DISPLAY_HEIGHT-textHeight*2-2, DISPLAY_WIDTH, textHeight, notification->title, AlignLeft, LIGHT_BLUE);
     Layout::drawStringInto(0, DISPLAY_HEIGHT-textHeight-2, DISPLAY_WIDTH, textHeight, body, AlignLeft, LIGHT_BLUE);
 }
 
@@ -609,8 +618,37 @@ void showTime(bool noSeconds){
 
 if (inputMap&16) {
       inputMap &= ~16;
-      transitionState(StateFlashlight);
+
+  WiFi.mode(WIFI_STA);
+    int status = WL_IDLE_STATUS; 
+    int i=0;
+    while (status != WL_CONNECTED) {
+            Layout::fillRect(0, TIME_Y_POS, DISPLAY_WIDTH, timeHeight, BLACK, BLACK);
+      Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 18, "Toggling light...", AlignLeft, GREEN);
+      Layout::swapBuffers();
+      status = wifiMulti.run();
+
+      i++;
+
+      if (i==5) {
+        Layout::clear();
+        Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 14, "Timed out.", AlignLeft, RED);  
+        Layout::swapBuffers();
+        WiFi.disconnect();
+        WiFi.mode(WIFI_OFF);
+        return; 
+      }
+      delay(2000);
+    }
+      
+  toggleRoomLights();
+
+WiFi.disconnect();
+WiFi.mode(WIFI_OFF);
+      
+ /*     transitionState(StateFlashlight);
       return;
+      */
 }
 
   if (inputMap&2) {  

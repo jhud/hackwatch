@@ -70,7 +70,7 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
   }
   display.setTextAlignment(alignments[(int)align]);
       display.setFont(Layout::getFontForSize(str, w,h));
-        display.drawString(x, y, str, color);
+        display.drawStringMaxWidth(x, y, w+1, str, color); // Seems to be overly conservative - add some padding
 #else
   static const int yOffset =  (h>22 ? 3:1);
   
