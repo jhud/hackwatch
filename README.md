@@ -9,7 +9,7 @@ The "flash" button on the GPIO0 of the development board is repurposed as a func
 
 ## Features
  - Flashlight, Stopwatch, Timer, Wifi Scan, UV Sensor with daily exposure graph
- - BLE connection to Apple devices, with message notifications
+ - BLE connection with message notifications
  - Hardcoded calendar functionality, which will remind you when you need to catch buses, etc.
  - Screen off button, goes into sleep mode
  - Switch between color or B&W display on the application level, via a high-level UI interface.
@@ -21,7 +21,8 @@ The "flash" button on the GPIO0 of the development board is repurposed as a func
 
 Install the following dependencies:
  - Time (from Arduino library manager)
- - git clone https://github.com/mgo-tec/ESP32_SSD1331 (for the color SSD1331 display)
+ - ```git clone https://github.com/mgo-tec/ESP32_SSD1331``` (for the color SSD1331 display)
+ - ```git clone https://github.com/Smartphone-Companions/ESP32NotificationsLib.git``` (for the Bluetooth LE notifications)
 
 
 You need to create a file called "secrets.h" which has your WiFi SSID and password:
