@@ -61,8 +61,7 @@ void Layout::setContrast(int val) {
 
 }
 
-const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alignment align, Color color) {
-
+void Layout::drawStringInto(int x, int y, int w, int h, String str, Alignment align, Color color) {
 #ifdef COLOR_SCREEN
   display.Display_Clear(x,y,x+w, y+h);
   if (align == AlignRight) {
@@ -86,7 +85,7 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
 #endif
 }
   
-  const char * Layout::drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color) {
+void Layout::drawDigitsInto(int x, int y, int w, int h, int hr, int m, char separator, int s, Color color) {
 	         char buffer[20];
           if (s == -1) {
          sprintf(buffer, "%02d%c%02d", hr, separator, m);          
@@ -98,7 +97,7 @@ const char * Layout::drawStringInto(int x, int y, int w, int h, String str, Alig
 
     }
 	
-    const char * Layout::drawDigitsInto(int x, int y, int w, int h, int m, int s, Color color) {
+void Layout::drawDigitsInto(int x, int y, int w, int h, int m, int s, Color color) {
   	         char buffer[20];
   			 sprintf(buffer, "%02d:%02d", m, s);
   			 drawStringInto(x, y, w, h, buffer, AlignLeft, color);

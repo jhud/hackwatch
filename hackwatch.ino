@@ -13,7 +13,7 @@
  
 #include <TimeLib.h> 
 #include <WiFi.h>
-#include <WiFiMulti.h>
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 
 #include <WiFiUdp.h>
 
@@ -25,13 +25,7 @@
 
 #include "esp32notifications.h"
 
-#include <driver/adc.h>
-
-// Anything we don't want to commit publicly to git (passwords, keys, etc.)
-// You ned to create this file yourself, like:
-// const char* ssid[3] = {"yourwifi", "secondwifi", "3rd..."};  //  your network SSID (name)
-// const char* pass[3] = {"yourpwd", "secondpwd", "3rdpwd..."};       // your network password
-#include "secrets.h"
+#include <esp_adc/adc_oneshot.h>
 
 #define uS_TO_S_FACTOR 1000000  /* Conversion factor for micro seconds to seconds */
 
@@ -88,7 +82,6 @@ uint32_t inputMap;
 
 State state = StateTime;
 
-WiFiMulti wifiMulti;
 #define INTERUPT_PIN 0
 void onboardButtonPressed() {
 
@@ -110,8 +103,8 @@ void inputPressed3() { inputMap |=  8; }
 void inputPressed4() { inputMap |=  16; }
 
 bool isTimeSet() {
-    time_t now = time(nullptr);
- return (now > 1000);
+    time_t got_time = now();
+ return (got_time > 1000);
 }
 
 const char btLogo[] PROGMEM = {0b1000100,0, 0b101000, 0, 0b11111111, 1,0b10101010,0,0b1000100,0};
@@ -181,20 +174,15 @@ void setup()
   
     WiFi.mode(WIFI_STA);
 
-    for (int i=0; i<NUM_OF(ssid); i++) {
-      wifiMulti.addAP(ssid[i], pass[i]);
-    }
+    WiFiManager wm;
 
-
-    int status = WL_IDLE_STATUS; 
     int i=0;
-    while (status != WL_CONNECTED) {
+    while (!wm.autoConnect("Hackwatch")) {
       Layout::clear();
       Layout::drawStringInto(0, 0, DISPLAY_WIDTH, 18, "Connecting...", AlignLeft, GREEN);
       Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 18, String(i), AlignLeft, WHITE);
       Layout::drawStringInto(0, 36, DISPLAY_WIDTH, 18, String(WiFi.status()), AlignLeft, GREEN);
       Layout::swapBuffers();
-      status = wifiMulti.run();
 
       i++;
 
@@ -533,12 +521,29 @@ int averageAnalogRead()
   byte numberOfReadings = 4;
   unsigned int runningValue = 0; 
 
-    adc1_config_width(ADC_WIDTH_12Bit);
-    adc1_config_channel_atten(ADC1_CHANNEL_6,ADC_ATTEN_6db);
 
-  for(int x = 0 ; x < numberOfReadings ; x++)
-    runningValue += adc1_get_raw(ADC1_CHANNEL_6);
-  runningValue /= numberOfReadings;
+   adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+
+    adc_oneshot_chan_cfg_t config = {
+        .atten = ADC_ATTEN_DB_6, 
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC_CHANNEL_6, &config));
+
+
+
+  for(int x = 0 ; x < numberOfReadings ; x++) {
+    int adc_raw;
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC_CHANNEL_6, &adc_raw));
+    runningValue += adc_raw;
+    runningValue /= numberOfReadings;
+  }
+
+    ESP_ERROR_CHECK(adc_oneshot_del_unit(adc1_handle));
 
   return(runningValue);  
 }
@@ -626,7 +631,6 @@ if (inputMap&16) {
             Layout::fillRect(0, TIME_Y_POS, DISPLAY_WIDTH, timeHeight, BLACK, BLACK);
       Layout::drawStringInto(0, 18, DISPLAY_WIDTH, 18, "Toggling light...", AlignLeft, GREEN);
       Layout::swapBuffers();
-      status = wifiMulti.run();
 
       i++;
 
